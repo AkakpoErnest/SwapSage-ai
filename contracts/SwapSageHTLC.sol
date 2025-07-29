@@ -10,7 +10,14 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 /**
  * @title SwapSageHTLC
  * @dev Hash Time Lock Contract for atomic cross-chain swaps
+ * 
+ * This contract enables trustless cross-chain token swaps using Hash Time Lock Contracts (HTLC).
+ * Users can initiate swaps with a secret hash, and the recipient can claim the tokens by revealing
+ * the secret before the timelock expires. If the secret isn't revealed in time, the initiator can
+ * refund their tokens.
+ * 
  * @author SwapSage AI Team
+ * @notice This is the core contract for atomic cross-chain swaps
  */
 contract SwapSageHTLC is ReentrancyGuard, Pausable, Ownable {
     using SafeERC20 for IERC20;
@@ -54,11 +61,15 @@ contract SwapSageHTLC is ReentrancyGuard, Pausable, Ownable {
 
     /**
      * @dev Initiate a new atomic swap
-     * @param recipient The address that will receive the tokens
-     * @param token The ERC20 token address (address(0) for ETH)
-     * @param amount The amount of tokens to swap
-     * @param hashlock The hash of the secret
-     * @param timelock The time until the swap can be refunded
+     * 
+     * This function creates a new HTLC swap. The initiator locks their tokens with a secret hash.
+     * The recipient can claim the tokens by revealing the secret before the timelock expires.
+     * 
+     * @param recipient The address that will receive the tokens (the person you're swapping with)
+     * @param token The ERC20 token address (use address(0) for ETH)
+     * @param amount The amount of tokens to swap (in wei for ETH, or token decimals)
+     * @param hashlock The hash of the secret (generated from the secret using keccak256)
+     * @param timelock The timestamp when the swap can be refunded (must be 1-24 hours from now)
      */
     function initiateSwap(
         address recipient,
