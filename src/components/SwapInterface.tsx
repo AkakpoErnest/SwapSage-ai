@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDownUp, Settings, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowDownUp, Settings, Info, AlertCircle, CheckCircle, Loader2, TrendingUp } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { transactionMonitor } from "@/services/transactionMonitor";
 
 interface Token {
   symbol: string;
@@ -24,11 +27,97 @@ const SwapInterface = () => {
   const [fromToken, setFromToken] = useState<Token | null>(null);
   const [toToken, setToToken] = useState<Token | null>(null);
   const [estimatedOutput, setEstimatedOutput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [swapQuote, setSwapQuote] = useState<any>(null);
+  const [slippage, setSlippage] = useState(0.5);
+  const { toast } = useToast();
 
   const handleSwapTokens = () => {
     const temp = fromToken;
     setFromToken(toToken);
     setToToken(temp);
+    setEstimatedOutput("");
+    setSwapQuote(null);
+  };
+
+  // Calculate estimated output when amount or tokens change
+  useEffect(() => {
+    if (fromAmount && fromToken && toToken) {
+      calculateQuote();
+    } else {
+      setEstimatedOutput("");
+      setSwapQuote(null);
+    }
+  }, [fromAmount, fromToken, toToken]);
+
+  const calculateQuote = async () => {
+    if (!fromAmount || !fromToken || !toToken) return;
+
+    try {
+      setIsLoading(true);
+      
+      // Mock quote calculation - in real app this would call 1inch API
+      const mockQuote = {
+        fromToken: fromToken.symbol,
+        toToken: toToken.symbol,
+        fromAmount: fromAmount,
+        toAmount: (parseFloat(fromAmount) * (fromToken.symbol === "ETH" ? 3200 : 1)).toFixed(6),
+        fee: (parseFloat(fromAmount) * 0.003).toFixed(6),
+        slippage: slippage,
+        estimatedTime: fromToken.chain === toToken.chain ? "30 seconds" : "2-5 minutes",
+        bridgeFee: fromToken.chain !== toToken.chain ? "~$2.50" : "0"
+      };
+
+      setSwapQuote(mockQuote);
+      setEstimatedOutput(mockQuote.toAmount);
+      
+    } catch (error) {
+      toast({
+        title: "Quote Error",
+        description: "Failed to get swap quote",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const executeSwap = async () => {
+    if (!swapQuote || !fromToken || !toToken) return;
+
+    try {
+      setIsLoading(true);
+      
+      // Mock transaction hash
+      const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+      
+      // Add to transaction monitor
+      await transactionMonitor.addTransaction(txHash, {
+        fromToken: fromToken.symbol,
+        toToken: toToken.symbol,
+        fromAmount: fromAmount,
+        toAmount: estimatedOutput
+      });
+
+      toast({
+        title: "Swap Initiated",
+        description: `Transaction submitted: ${txHash.slice(0, 8)}...`,
+      });
+
+      // Reset form
+      setFromAmount("");
+      setEstimatedOutput("");
+      setSwapQuote(null);
+      
+    } catch (error) {
+      toast({
+        title: "Swap Error",
+        description: "Failed to execute swap",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -36,7 +125,13 @@ const SwapInterface = () => {
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Cross-Chain Swap</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">Cross-Chain Swap</h3>
+            <Badge variant="secondary" className="text-xs">
+              <TrendingUp className="w-3 h-3 mr-1" />
+              Live Quotes
+            </Badge>
+          </div>
           <Button variant="ghost" size="icon">
             <Settings className="w-4 h-4" />
           </Button>
@@ -129,24 +224,35 @@ const SwapInterface = () => {
         </div>
 
         {/* Swap Details */}
-        {fromToken && toToken && fromToken.chain !== toToken.chain && (
+        {swapQuote && (
           <div className="bg-space-gray rounded-lg p-3 space-y-2">
             <div className="flex items-center gap-2 text-sm">
               <Info className="w-4 h-4 text-neon-cyan" />
-              <span className="text-muted-foreground">Cross-chain swap via 1inch Fusion+</span>
+              <span className="text-muted-foreground">
+                {fromToken?.chain === toToken?.chain 
+                  ? "Same-chain swap via 1inch Aggregation" 
+                  : "Cross-chain swap via 1inch Fusion+"
+                }
+              </span>
             </div>
             <div className="text-xs space-y-1 text-muted-foreground">
               <div className="flex justify-between">
                 <span>Estimated time:</span>
-                <span>2-5 minutes</span>
+                <span>{swapQuote.estimatedTime}</span>
               </div>
               <div className="flex justify-between">
-                <span>Bridge fee:</span>
-                <span>~$2.50</span>
+                <span>Swap fee:</span>
+                <span>{swapQuote.fee} {swapQuote.fromToken}</span>
               </div>
+              {swapQuote.bridgeFee !== "0" && (
+                <div className="flex justify-between">
+                  <span>Bridge fee:</span>
+                  <span>{swapQuote.bridgeFee}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>Slippage:</span>
-                <span>0.5%</span>
+                <span>{swapQuote.slippage}%</span>
               </div>
             </div>
           </div>
@@ -157,14 +263,21 @@ const SwapInterface = () => {
           variant="neon" 
           size="xl" 
           className="w-full"
-          disabled={!fromAmount || !fromToken || !toToken}
+          disabled={!fromAmount || !fromToken || !toToken || isLoading}
+          onClick={executeSwap}
         >
-          {!fromToken || !toToken 
-            ? "Select tokens to swap"
-            : fromToken.chain === toToken.chain
-            ? "Swap Tokens"
-            : "Bridge & Swap"
-          }
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Processing...
+            </>
+          ) : !fromToken || !toToken ? (
+            "Select tokens to swap"
+          ) : fromToken.chain === toToken.chain ? (
+            "Swap Tokens"
+          ) : (
+            "Bridge & Swap"
+          )}
         </Button>
       </div>
     </Card>
