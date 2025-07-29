@@ -4,9 +4,16 @@ import SwapInterface from "@/components/SwapInterface";
 import TransactionProgress from "@/components/TransactionProgress";
 import NetworkSelector from "@/components/NetworkSelector";
 import WalletConnect from "@/components/WalletConnect";
+import SmartContractIntegration from "@/components/SmartContractIntegration";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const Index = () => {
+  // Mock wallet state - in real app this would come from useWallet hook
+  const mockWalletState = {
+    isConnected: true,
+    address: "0x1234567890123456789012345678901234567890"
+  };
+
   return (
     <div className="min-h-screen bg-gradient-space">
       <Header />
@@ -46,6 +53,24 @@ const Index = () => {
         <div className="max-w-4xl mx-auto grid lg:grid-cols-2 gap-6">
           <AIChat />
           <WalletConnect />
+        </div>
+      </section>
+
+      {/* Smart Contract Integration */}
+      <section className="py-12 px-4">
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold mb-4">
+              🔗 Smart Contract Integration
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Live price feeds, atomic swaps, and real-time contract interactions powered by Chainlink and 1inch.
+            </p>
+          </div>
+          <SmartContractIntegration 
+            walletAddress={mockWalletState.address}
+            isConnected={mockWalletState.isConnected}
+          />
         </div>
       </section>
 
