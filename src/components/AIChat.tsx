@@ -218,6 +218,44 @@ const AIChat = () => {
         )}
       </div>
 
+      {/* Quick Actions */}
+      <div className="px-4 py-2 border-t border-border">
+        <div className="flex flex-wrap gap-2 mb-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Swap 1 ETH to USDC")}
+            className="text-xs bg-space-gray border-neon-cyan/20 hover:border-neon-cyan/40"
+          >
+            💱 Swap ETH→USDC
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Get ETH price")}
+            className="text-xs bg-space-gray border-neon-purple/20 hover:border-neon-purple/40"
+          >
+            📊 ETH Price
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Bridge 100 USDC to Stellar")}
+            className="text-xs bg-space-gray border-neon-green/20 hover:border-neon-green/40"
+          >
+            🌉 Bridge USDC
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Help")}
+            className="text-xs bg-space-gray border-border hover:border-neon-cyan/40"
+          >
+            ❓ Help
+          </Button>
+        </div>
+      </div>
+
       {/* Input Form */}
       <form onSubmit={handleSubmit} className="p-4 border-t border-border">
         <div className="flex gap-2">
