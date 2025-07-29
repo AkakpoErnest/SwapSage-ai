@@ -8,7 +8,16 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "hardhat test",
+    "test:integration": "hardhat test test/integration.test.js",
+    "compile": "hardhat compile",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy-testnet.js --network sepolia",
+    "deploy:polygon": "hardhat run scripts/deploy-testnet.js --network polygon",
+    "node": "hardhat node",
+    "clean": "hardhat clean",
+    "verify": "hardhat verify"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -82,6 +91,7 @@
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "dotenv": "^16.3.1"
   }
 }
