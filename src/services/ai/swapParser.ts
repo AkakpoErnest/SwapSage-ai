@@ -94,23 +94,36 @@ class SwapCommandParser {
   }
 
   private extractAmount(command: string): string | null {
-    // Look for patterns like "100", "1.5", "0.001"
+    // Look for patterns like "100", "1.5", "0.001", "1 ETH", "50 USDC"
     const amountRegex = /(\d+(?:\.\d+)?)\s*(?:usdc|eth|xlm|tokens?|coins?|dollars?|\$)?/i;
     const match = command.match(amountRegex);
-    return match ? match[1] : null;
+    
+    // Also look for patterns like "1 ETH", "50 USDC"
+    const tokenAmountRegex = /(\d+(?:\.\d+)?)\s+(eth|usdc|xlm|btc|dai|usdt)/i;
+    const tokenMatch = command.match(tokenAmountRegex);
+    
+    return tokenMatch ? tokenMatch[1] : (match ? match[1] : null);
   }
 
   private extractTokens(command: string): { fromToken: string | null; toToken: string | null } {
-    // Look for patterns like "USDC to XLM", "ETH for BTC"
+    // Look for patterns like "USDC to XLM", "ETH for BTC", "1 ETH to USDC"
     const patterns = [
       /(\w+)\s+(?:to|for|→)\s+(\w+)/i,
       /from\s+(\w+)\s+to\s+(\w+)/i,
       /swap\s+(\w+)\s+(?:to|for)\s+(\w+)/i,
+      /(\d+(?:\.\d+)?)\s+(\w+)\s+(?:to|for)\s+(\w+)/i,
     ];
 
     for (const pattern of patterns) {
       const match = command.match(pattern);
       if (match) {
+        // Handle the case where amount is included in the pattern
+        if (match.length === 4) {
+          return {
+            fromToken: this.normalizeToken(match[2]),
+            toToken: this.normalizeToken(match[3]),
+          };
+        }
         return {
           fromToken: this.normalizeToken(match[1]),
           toToken: this.normalizeToken(match[2]),

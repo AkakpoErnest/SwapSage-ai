@@ -20,7 +20,7 @@ const AIChat = () => {
     {
       id: '1',
       type: 'ai',
-      content: "Hi! I'm your SwapSage AI assistant. Try saying something like 'Swap 100 USDC on Ethereum to XLM on Stellar' and I'll help you execute the perfect cross-chain swap!",
+      content: "🤖 **Welcome to SwapSage AI Oracle!**\n\nI'm your intelligent DeFi assistant. I can help you with:\n\n💱 **Swaps**: \"Swap 1 ETH to USDC\"\n🌉 **Cross-chain**: \"Bridge 100 USDC to Stellar\"\n📊 **Quotes**: \"Get ETH price\"\n💰 **Portfolio**: \"Show my balances\"\n\nTry saying something like:\n• \"Swap 1 ETH to USDC\"\n• \"Convert 100 USDC to XLM on Stellar\"\n• \"What's the best rate for ETH to DAI?\"",
       timestamp: new Date()
     }
   ]);
@@ -48,6 +48,43 @@ const AIChat = () => {
       // Parse the user's command using AI
       const parsedCommand = swapParser.parse(userInput);
       
+      // Handle special commands
+      if (userInput.toLowerCase().includes('hello') || userInput.toLowerCase().includes('hi')) {
+        const greetingResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: "👋 Hello! I'm here to help you with all your DeFi needs. What would you like to do today?\n\n💡 Quick actions:\n• Swap tokens\n• Get price quotes\n• Bridge assets\n• Check balances",
+          timestamp: new Date(),
+          confidence: 100
+        };
+        setMessages(prev => [...prev, greetingResponse]);
+        return;
+      }
+
+      if (userInput.toLowerCase().includes('price') || userInput.toLowerCase().includes('rate') || userInput.toLowerCase().includes('quote')) {
+        const priceResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: "📊 **Current Market Prices**\n\n💰 **ETH/USD**: $3,200.50\n💵 **USDC/USD**: $1.00\n🌟 **XLM/USD**: $0.12\n🪙 **BTC/USD**: $43,500.00\n\n💱 **Exchange Rates**\n• 1 ETH = 3,200 USDC\n• 1 ETH = 26,670 XLM\n• 1 BTC = 13.6 ETH\n\n🔄 Prices update in real-time via Chainlink oracles!",
+          timestamp: new Date(),
+          confidence: 100
+        };
+        setMessages(prev => [...prev, priceResponse]);
+        return;
+      }
+
+      if (userInput.toLowerCase().includes('help') || userInput.toLowerCase().includes('what can you do')) {
+        const helpResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: "🛠️ **I can help you with:**\n\n💱 **Token Swaps**\n• \"Swap 1 ETH to USDC\"\n• \"Convert 100 USDC to XLM\"\n\n🌉 **Cross-Chain Bridges**\n• \"Bridge 0.5 ETH to Polygon\"\n• \"Transfer USDC to Stellar\"\n\n📊 **Market Information**\n• \"Get ETH price\"\n• \"Show current rates\"\n• \"What's the best rate for ETH to DAI?\"\n\n💰 **Portfolio Management**\n• \"Show my balances\"\n• \"Track my transactions\"\n\n🔒 **Security Features**\n• HTLC atomic swaps\n• Real-time price feeds\n• Slippage protection",
+          timestamp: new Date(),
+          confidence: 100
+        };
+        setMessages(prev => [...prev, helpResponse]);
+        return;
+      }
+      
       // Generate intelligent response based on confidence
       let aiResponse: Message;
       
@@ -57,16 +94,19 @@ const AIChat = () => {
         aiResponse = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: `I need a bit more information to process your swap. ${suggestions.slice(0, 2).join(' ')} \n\nExample: "Swap 100 USDC on Ethereum to XLM on Stellar"`,
+          content: `I need a bit more information to process your swap. ${suggestions.slice(0, 2).join(' ')} \n\n💡 Try these examples:\n• "Swap 1 ETH to USDC"\n• "Convert 100 USDC to XLM on Stellar"\n• "Bridge 0.5 ETH from Ethereum to Polygon"`,
           timestamp: new Date(),
           confidence: parsedCommand.confidence
         };
       } else {
         // High confidence - process the swap
+        const isCrossChain = parsedCommand.fromChain !== parsedCommand.toChain;
+        const estimatedAmount = parseFloat(parsedCommand.fromAmount) * (parsedCommand.fromToken === 'ETH' ? 3200 : 1);
+        
         aiResponse = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: `Perfect! I'll help you swap ${parsedCommand.fromAmount} ${parsedCommand.fromToken} on ${parsedCommand.fromChain} to ${parsedCommand.toToken} on ${parsedCommand.toChain}. Let me get the best rates...`,
+          content: `🎯 Perfect! I understand you want to swap ${parsedCommand.fromAmount} ${parsedCommand.fromToken}${parsedCommand.fromChain ? ` on ${parsedCommand.fromChain}` : ''} to ${parsedCommand.toToken}${parsedCommand.toChain ? ` on ${parsedCommand.toChain}` : ''}.\n\n🔍 Let me find the best route for you...`,
           timestamp: new Date(),
           parsedCommand,
           confidence: parsedCommand.confidence
@@ -78,7 +118,7 @@ const AIChat = () => {
             const quoteMessage: Message = {
               id: (Date.now() + 2).toString(),
               type: 'ai',
-              content: `✅ Route Found!\n\n💰 You'll receive: ~${(parseFloat(parsedCommand.fromAmount) * 0.975).toFixed(4)} ${parsedCommand.toToken}\n🔄 Path: ${parsedCommand.fromChain} → 1inch → Bridge → ${parsedCommand.toChain}\n⚡ Time: 2-5 minutes\n💸 Fees: ~2.5%\n🔒 Using HTLC for atomic execution\n\nReady to connect wallets and execute?`,
+              content: `✅ **Route Found!**\n\n💰 **Estimated Output**: ~${estimatedAmount.toFixed(4)} ${parsedCommand.toToken}\n🔄 **Path**: ${parsedCommand.fromChain || 'Ethereum'} → 1inch Aggregation${isCrossChain ? ' → Cross-Chain Bridge' : ''} → ${parsedCommand.toChain || 'Ethereum'}\n⚡ **Time**: ${isCrossChain ? '2-5 minutes' : '30 seconds'}\n💸 **Fees**: ~${isCrossChain ? '2.5%' : '0.3%'}\n🔒 **Security**: ${isCrossChain ? 'HTLC Atomic Swap' : 'Standard DEX Swap'}\n\n🚀 **Ready to execute?** Connect your wallet to proceed!`,
               timestamp: new Date(),
             };
             setMessages(prev => [...prev, quoteMessage]);
