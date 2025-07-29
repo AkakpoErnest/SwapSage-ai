@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Send, Sparkles, Bot, User, CheckCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { swapParser, type ParsedSwapCommand } from '@/services/ai/swapParser';
+import { gpt4Service, type GPT4Response } from '@/services/ai/gpt4Service';
 
 interface Message {
   id: string;
@@ -13,6 +14,8 @@ interface Message {
   timestamp: Date;
   parsedCommand?: ParsedSwapCommand;
   confidence?: number;
+  language?: string;
+  gpt4Response?: GPT4Response;
 }
 
 const AIChat = () => {
@@ -20,8 +23,9 @@ const AIChat = () => {
     {
       id: '1',
       type: 'ai',
-      content: "🤖 **Welcome to SwapSage AI Oracle!**\n\nI'm your intelligent DeFi assistant. I can help you with:\n\n💱 **Swaps**: \"Swap 1 ETH to USDC\"\n🌉 **Cross-chain**: \"Bridge 100 USDC to Stellar\"\n📊 **Quotes**: \"Get ETH price\"\n💰 **Portfolio**: \"Show my balances\"\n\nTry saying something like:\n• \"Swap 1 ETH to USDC\"\n• \"Convert 100 USDC to XLM on Stellar\"\n• \"What's the best rate for ETH to DAI?\"",
-      timestamp: new Date()
+      content: `🤖 **Welcome to SwapSage AI Oracle!**\n\nI'm your intelligent DeFi assistant with ${gpt4Service.isAvailable() ? 'GPT-4' : 'advanced'} AI capabilities. I can help you with:\n\n💱 **Swaps**: "Swap 1 ETH to USDC"\n🌉 **Cross-chain**: "Bridge 100 USDC to Stellar"\n📊 **Quotes**: "Get ETH price"\n💰 **Portfolio**: "Show my balances"\n🌍 **Multi-language**: Support for 10+ languages\n\nTry saying something like:\n• "Swap 1 ETH to USDC" (English)\n• "Cambiar 1 ETH por USDC" (Spanish)\n• "Échangez 1 ETH contre USDC" (French)\n• "1 ETHをUSDCに交換" (Japanese)`,
+      timestamp: new Date(),
+      language: 'English'
     }
   ]);
   const [input, setInput] = useState("");
@@ -45,7 +49,56 @@ const AIChat = () => {
     setIsProcessing(true);
 
     try {
-      // Parse the user's command using AI
+      // First try GPT-4 if available, then fallback to local parser
+      let gpt4Response: GPT4Response | null = null;
+      
+      if (gpt4Service.isAvailable()) {
+        try {
+          gpt4Response = await gpt4Service.processCommand(userInput);
+        } catch (error) {
+          console.log('GPT-4 failed, falling back to local parser');
+        }
+      }
+
+      // Use GPT-4 response if available and successful
+      if (gpt4Response && gpt4Response.success) {
+        const aiResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: gpt4Response.message,
+          timestamp: new Date(),
+          parsedCommand: gpt4Response.parsedCommand,
+          confidence: gpt4Response.confidence,
+          language: gpt4Response.language,
+          gpt4Response: gpt4Response
+        };
+
+        setMessages(prev => [...prev, aiResponse]);
+
+        // Show detailed quote for swap actions
+        if (gpt4Response.parsedCommand?.action === 'swap' && gpt4Response.parsedCommand.estimatedOutput) {
+          setTimeout(() => {
+            const quoteMessage: Message = {
+              id: (Date.now() + 2).toString(),
+              type: 'ai',
+              content: `✅ **Route Found!**\n\n💰 **Estimated Output**: ~${gpt4Response.parsedCommand?.estimatedOutput} ${gpt4Response.parsedCommand?.toToken}\n🔄 **Path**: ${gpt4Response.parsedCommand?.route}\n⚡ **Time**: ${gpt4Response.parsedCommand?.timeEstimate}\n💸 **Fees**: ${gpt4Response.parsedCommand?.fees}\n🔒 **Security**: HTLC Atomic Swap\n\n🚀 **Ready to execute?** Connect your wallet to proceed!`,
+              timestamp: new Date(),
+              language: gpt4Response.language
+            };
+            setMessages(prev => [...prev, quoteMessage]);
+          }, 2000);
+        }
+
+        toast({
+          title: gpt4Response.confidence >= 60 ? "GPT-4 Processed" : "Need More Info",
+          description: `Confidence: ${gpt4Response.confidence}% - ${gpt4Response.language || 'English'}`,
+          variant: gpt4Response.confidence >= 60 ? "default" : "destructive"
+        });
+        
+        return;
+      }
+
+      // Fallback to local parser
       const parsedCommand = swapParser.parse(userInput);
       
       // Handle special commands
@@ -55,7 +108,8 @@ const AIChat = () => {
           type: 'ai',
           content: "👋 Hello! I'm here to help you with all your DeFi needs. What would you like to do today?\n\n💡 Quick actions:\n• Swap tokens\n• Get price quotes\n• Bridge assets\n• Check balances",
           timestamp: new Date(),
-          confidence: 100
+          confidence: 100,
+          language: 'English'
         };
         setMessages(prev => [...prev, greetingResponse]);
         return;
@@ -67,7 +121,8 @@ const AIChat = () => {
           type: 'ai',
           content: "📊 **Current Market Prices**\n\n💰 **ETH/USD**: $3,200.50\n💵 **USDC/USD**: $1.00\n🌟 **XLM/USD**: $0.12\n🪙 **BTC/USD**: $43,500.00\n\n💱 **Exchange Rates**\n• 1 ETH = 3,200 USDC\n• 1 ETH = 26,670 XLM\n• 1 BTC = 13.6 ETH\n\n🔄 Prices update in real-time via Chainlink oracles!",
           timestamp: new Date(),
-          confidence: 100
+          confidence: 100,
+          language: 'English'
         };
         setMessages(prev => [...prev, priceResponse]);
         return;
@@ -79,7 +134,8 @@ const AIChat = () => {
           type: 'ai',
           content: "🛠️ **I can help you with:**\n\n💱 **Token Swaps**\n• \"Swap 1 ETH to USDC\"\n• \"Convert 100 USDC to XLM\"\n\n🌉 **Cross-Chain Bridges**\n• \"Bridge 0.5 ETH to Polygon\"\n• \"Transfer USDC to Stellar\"\n\n📊 **Market Information**\n• \"Get ETH price\"\n• \"Show current rates\"\n• \"What's the best rate for ETH to DAI?\"\n\n💰 **Portfolio Management**\n• \"Show my balances\"\n• \"Track my transactions\"\n\n🔒 **Security Features**\n• HTLC atomic swaps\n• Real-time price feeds\n• Slippage protection",
           timestamp: new Date(),
-          confidence: 100
+          confidence: 100,
+          language: 'English'
         };
         setMessages(prev => [...prev, helpResponse]);
         return;
@@ -252,6 +308,42 @@ const AIChat = () => {
             className="text-xs bg-space-gray border-border hover:border-neon-cyan/40"
           >
             ❓ Help
+          </Button>
+        </div>
+        
+        {/* Multi-language Quick Actions */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Cambiar 1 ETH por USDC")}
+            className="text-xs bg-space-gray border-yellow-400/20 hover:border-yellow-400/40"
+          >
+            🇪🇸 Cambiar ETH
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Échangez 1 ETH contre USDC")}
+            className="text-xs bg-space-gray border-blue-400/20 hover:border-blue-400/40"
+          >
+            🇫🇷 Échanger ETH
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("1 ETHをUSDCに交換")}
+            className="text-xs bg-space-gray border-red-400/20 hover:border-red-400/40"
+          >
+            🇯🇵 ETH交換
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("兑换1个ETH到USDC")}
+            className="text-xs bg-space-gray border-green-400/20 hover:border-green-400/40"
+          >
+            🇨🇳 兑换ETH
           </Button>
         </div>
       </div>
