@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Header from "@/components/Header";
 import AIChat from "@/components/AIChat";
 import SwapInterface from "@/components/SwapInterface";
@@ -5,6 +6,7 @@ import TransactionProgress from "@/components/TransactionProgress";
 import NetworkSelector from "@/components/NetworkSelector";
 import WalletConnect from "@/components/WalletConnect";
 import SmartContractIntegration from "@/components/SmartContractIntegration";
+import Dashboard from "@/components/Dashboard";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const Index = () => {
@@ -13,6 +15,8 @@ const Index = () => {
     isConnected: true,
     address: "0x1234567890123456789012345678901234567890"
   };
+
+  const [activeTab, setActiveTab] = useState("swap");
 
   return (
     <div className="min-h-screen bg-gradient-space">
@@ -56,21 +60,123 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Smart Contract Integration */}
+      {/* Main Application Interface */}
       <section className="py-12 px-4">
         <div className="container mx-auto max-w-7xl">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-4">
-              🔗 Smart Contract Integration
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Live price feeds, atomic swaps, and real-time contract interactions powered by Chainlink and 1inch.
-            </p>
+          {/* Tab Navigation */}
+          <div className="flex justify-center mb-8">
+            <div className="flex space-x-1 bg-space-gray rounded-lg p-1">
+              <button
+                onClick={() => setActiveTab("swap")}
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                  activeTab === "swap"
+                    ? "bg-neon-cyan text-black shadow-lg"
+                    : "text-muted-foreground hover:text-white"
+                }`}
+              >
+                🔄 Swap Interface
+              </button>
+              <button
+                onClick={() => setActiveTab("contracts")}
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                  activeTab === "contracts"
+                    ? "bg-neon-cyan text-black shadow-lg"
+                    : "text-muted-foreground hover:text-white"
+                }`}
+              >
+                🔗 Smart Contracts
+              </button>
+              <button
+                onClick={() => setActiveTab("dashboard")}
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                  activeTab === "dashboard"
+                    ? "bg-neon-cyan text-black shadow-lg"
+                    : "text-muted-foreground hover:text-white"
+                }`}
+              >
+                📊 Dashboard
+              </button>
+              <button
+                onClick={() => setActiveTab("ai")}
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                  activeTab === "ai"
+                    ? "bg-neon-cyan text-black shadow-lg"
+                    : "text-muted-foreground hover:text-white"
+                }`}
+              >
+                🤖 AI Assistant
+              </button>
+            </div>
           </div>
-          <SmartContractIntegration 
-            walletAddress={mockWalletState.address}
-            isConnected={mockWalletState.isConnected}
-          />
+
+          {/* Tab Content */}
+          {activeTab === "swap" && (
+            <div className="space-y-8">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold mb-4">
+                  ⚡ Swap Interface
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Execute cross-chain swaps with real-time quotes and transaction monitoring.
+                </p>
+              </div>
+              <div className="grid lg:grid-cols-2 gap-8">
+                <SwapInterface />
+                <div className="space-y-6">
+                  <TransactionProgress />
+                  <NetworkSelector />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "contracts" && (
+            <div className="space-y-8">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold mb-4">
+                  🔗 Smart Contract Integration
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Live price feeds, atomic swaps, and real-time contract interactions powered by Chainlink and 1inch.
+                </p>
+              </div>
+              <SmartContractIntegration 
+                walletAddress={mockWalletState.address}
+                isConnected={mockWalletState.isConnected}
+              />
+            </div>
+          )}
+
+          {activeTab === "dashboard" && (
+            <div className="space-y-8">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold mb-4">
+                  📊 System Dashboard
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Real-time monitoring of all system activities, transactions, and network status.
+                </p>
+              </div>
+              <Dashboard 
+                walletAddress={mockWalletState.address}
+                isConnected={mockWalletState.isConnected}
+              />
+            </div>
+          )}
+
+          {activeTab === "ai" && (
+            <div className="space-y-8">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold mb-4">
+                  🤖 AI Assistant
+                </h2>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Natural language interface for executing swaps and getting market insights.
+                </p>
+              </div>
+              <AIChat />
+            </div>
+          )}
         </div>
       </section>
 
