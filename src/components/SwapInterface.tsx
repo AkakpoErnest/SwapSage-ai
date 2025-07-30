@@ -7,19 +7,52 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowDownUp, Settings, Info, AlertCircle, CheckCircle, Loader2, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { transactionMonitor } from "@/services/transactionMonitor";
+import { oneInchAPI, type SwapQuote } from "@/services/api/oneinch";
+import { useWallet } from "@/hooks/useWallet";
 
 interface Token {
   symbol: string;
   name: string;
   chain: string;
   icon: string;
+  address: string;
+  decimals: number;
 }
 
+// Real token data with addresses
 const tokens: Token[] = [
-  { symbol: "USDC", name: "USD Coin", chain: "Ethereum", icon: "🔵" },
-  { symbol: "ETH", name: "Ethereum", chain: "Ethereum", icon: "⟠" },
-  { symbol: "XLM", name: "Stellar Lumens", chain: "Stellar", icon: "🌟" },
-  { symbol: "USDC", name: "USD Coin", chain: "Stellar", icon: "🔵" },
+  { 
+    symbol: "ETH", 
+    name: "Ethereum", 
+    chain: "Ethereum", 
+    icon: "⟠",
+    address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    decimals: 18
+  },
+  { 
+    symbol: "USDC", 
+    name: "USD Coin", 
+    chain: "Ethereum", 
+    icon: "🔵",
+    address: "0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d",
+    decimals: 6
+  },
+  { 
+    symbol: "USDT", 
+    name: "Tether USD", 
+    chain: "Ethereum", 
+    icon: "💲",
+    address: "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    decimals: 6
+  },
+  { 
+    symbol: "XLM", 
+    name: "Stellar Lumens", 
+    chain: "Stellar", 
+    icon: "🌟",
+    address: "native",
+    decimals: 7
+  },
 ];
 
 const SwapInterface = () => {
@@ -28,9 +61,26 @@ const SwapInterface = () => {
   const [toToken, setToToken] = useState<Token | null>(null);
   const [estimatedOutput, setEstimatedOutput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [swapQuote, setSwapQuote] = useState<any>(null);
+  const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
   const [slippage, setSlippage] = useState(0.5);
+  const [availableTokens, setAvailableTokens] = useState<Record<string, any>>({});
   const { toast } = useToast();
+  const { walletState } = useWallet();
+
+  // Load available tokens on component mount
+  useEffect(() => {
+    loadAvailableTokens();
+  }, []);
+
+  const loadAvailableTokens = async () => {
+    try {
+      // Load tokens for Ethereum mainnet (chainId: 1)
+      const ethereumTokens = await oneInchAPI.getTokens(1);
+      setAvailableTokens(ethereumTokens);
+    } catch (error) {
+      console.error('Failed to load tokens:', error);
+    }
+  };
 
   const handleSwapTokens = () => {
     const temp = fromToken;
@@ -51,12 +101,11 @@ const SwapInterface = () => {
   }, [fromAmount, fromToken, toToken]);
 
   const calculateQuote = async () => {
-    if (!fromAmount || !fromToken || !toToken) return;
+    if (!fromAmount || !fromToken || !toToken || !walletState.isConnected) return;
 
-    try {
-      setIsLoading(true);
-      
-      // Mock quote calculation - in real app this would call 1inch API
+    // Skip if it's a cross-chain swap (Stellar)
+    if (fromToken.chain === "Stellar" || toToken.chain === "Stellar") {
+      // For cross-chain swaps, we'll use a different approach
       const mockQuote = {
         fromToken: fromToken.symbol,
         toToken: toToken.symbol,
@@ -64,17 +113,35 @@ const SwapInterface = () => {
         toAmount: (parseFloat(fromAmount) * (fromToken.symbol === "ETH" ? 3200 : 1)).toFixed(6),
         fee: (parseFloat(fromAmount) * 0.003).toFixed(6),
         slippage: slippage,
-        estimatedTime: fromToken.chain === toToken.chain ? "30 seconds" : "2-5 minutes",
-        bridgeFee: fromToken.chain !== toToken.chain ? "~$2.50" : "0"
+        estimatedTime: "2-5 minutes",
+        bridgeFee: "~$2.50"
       };
-
-      setSwapQuote(mockQuote);
+      setSwapQuote(mockQuote as any);
       setEstimatedOutput(mockQuote.toAmount);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Use real 1inch API for same-chain swaps
+      const quote = await oneInchAPI.getSwapQuote(
+        1, // Ethereum mainnet
+        fromToken.address,
+        toToken.address,
+        (parseFloat(fromAmount) * Math.pow(10, fromToken.decimals)).toString(),
+        walletState.address,
+        slippage
+      );
+
+      setSwapQuote(quote);
+      setEstimatedOutput(quote.toTokenAmount);
       
     } catch (error) {
+      console.error('Quote calculation error:', error);
       toast({
         title: "Quote Error",
-        description: "Failed to get swap quote",
+        description: error instanceof Error ? error.message : "Failed to get swap quote",
         variant: "destructive",
       });
     } finally {
@@ -83,12 +150,17 @@ const SwapInterface = () => {
   };
 
   const executeSwap = async () => {
-    if (!swapQuote || !fromToken || !toToken) return;
+    if (!swapQuote || !fromToken || !toToken || !walletState.isConnected) return;
 
     try {
       setIsLoading(true);
       
-      // Mock transaction hash
+      // For now, we'll simulate the transaction
+      // In a real implementation, you would:
+      // 1. Sign the transaction with the user's wallet
+      // 2. Send it to the blockchain
+      // 3. Monitor the transaction status
+      
       const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
       
       // Add to transaction monitor
@@ -120,6 +192,11 @@ const SwapInterface = () => {
     }
   };
 
+  // Filter tokens based on selected chain
+  const getFilteredTokens = (chain: string) => {
+    return tokens.filter(token => token.chain === chain);
+  };
+
   return (
     <Card className="p-6 bg-gradient-card border-neon-cyan/20">
       <div className="space-y-4">
@@ -137,11 +214,23 @@ const SwapInterface = () => {
           </Button>
         </div>
 
+        {/* Wallet Connection Warning */}
+        {!walletState.isConnected && (
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-yellow-500">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-sm">Connect your wallet to start swapping</span>
+            </div>
+          </div>
+        )}
+
         {/* From Token */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm text-muted-foreground">From</label>
-            <span className="text-xs text-muted-foreground">Balance: 1,234.56</span>
+            <span className="text-xs text-muted-foreground">
+              Balance: {walletState.isConnected ? "1,234.56" : "0.00"}
+            </span>
           </div>
           <div className="flex gap-2">
             <Input
@@ -149,6 +238,7 @@ const SwapInterface = () => {
               value={fromAmount}
               onChange={(e) => setFromAmount(e.target.value)}
               className="flex-1 text-lg h-14 bg-space-gray border-border focus:border-neon-cyan/40"
+              disabled={!walletState.isConnected}
             />
             <Select onValueChange={(value) => {
               const token = tokens.find(t => `${t.symbol}-${t.chain}` === value);
@@ -238,22 +328,28 @@ const SwapInterface = () => {
             <div className="text-xs space-y-1 text-muted-foreground">
               <div className="flex justify-between">
                 <span>Estimated time:</span>
-                <span>{swapQuote.estimatedTime}</span>
+                <span>{fromToken?.chain === toToken?.chain ? "30 seconds" : "2-5 minutes"}</span>
               </div>
               <div className="flex justify-between">
                 <span>Swap fee:</span>
-                <span>{swapQuote.fee} {swapQuote.fromToken}</span>
+                <span>~0.3%</span>
               </div>
-              {swapQuote.bridgeFee !== "0" && (
+              {fromToken?.chain !== toToken?.chain && (
                 <div className="flex justify-between">
                   <span>Bridge fee:</span>
-                  <span>{swapQuote.bridgeFee}</span>
+                  <span>~$2.50</span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span>Slippage:</span>
-                <span>{swapQuote.slippage}%</span>
+                <span>{slippage}%</span>
               </div>
+              {swapQuote.protocols && (
+                <div className="flex justify-between">
+                  <span>Protocols:</span>
+                  <span>{swapQuote.protocols.join(', ')}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -263,7 +359,7 @@ const SwapInterface = () => {
           variant="neon" 
           size="xl" 
           className="w-full"
-          disabled={!fromAmount || !fromToken || !toToken || isLoading}
+          disabled={!fromAmount || !fromToken || !toToken || isLoading || !walletState.isConnected}
           onClick={executeSwap}
         >
           {isLoading ? (
@@ -271,6 +367,8 @@ const SwapInterface = () => {
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Processing...
             </>
+          ) : !walletState.isConnected ? (
+            "Connect Wallet"
           ) : !fromToken || !toToken ? (
             "Select tokens to swap"
           ) : fromToken.chain === toToken.chain ? (

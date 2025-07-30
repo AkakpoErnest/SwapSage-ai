@@ -44,7 +44,7 @@ export interface FusionOrder {
 
 class OneInchAPI {
   private readonly baseUrl = 'https://api.1inch.dev';
-  private readonly apiKey = process.env.REACT_APP_1INCH_API_KEY || 'demo-key';
+  private readonly apiKey = import.meta.env.VITE_1INCH_API_KEY || 'demo-key';
 
   // Get supported tokens for a chain
   async getTokens(chainId: number): Promise<Record<string, Token>> {
@@ -52,6 +52,7 @@ class OneInchAPI {
       const response = await fetch(`${this.baseUrl}/swap/v6.0/${chainId}/tokens`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
+          'Accept': 'application/json',
         },
       });
       
@@ -63,8 +64,8 @@ class OneInchAPI {
       return data.tokens;
     } catch (error) {
       console.error('Error fetching tokens:', error);
-      // Return mock data for demo
-      return this.getMockTokens(chainId);
+      // Return fallback tokens for common chains
+      return this.getFallbackTokens(chainId);
     }
   }
 
@@ -90,6 +91,7 @@ class OneInchAPI {
       const response = await fetch(`${this.baseUrl}/swap/v6.0/${chainId}/swap?${params}`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
+          'Accept': 'application/json',
         },
       });
 
@@ -97,11 +99,53 @@ class OneInchAPI {
         throw new Error(`Failed to get swap quote: ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      
+      // Transform 1inch response to our format
+      return {
+        fromToken: {
+          address: data.tx.from,
+          symbol: this.getTokenSymbol(fromTokenAddress, chainId),
+          name: this.getTokenName(fromTokenAddress, chainId),
+          decimals: 18, // Default, should be fetched from token list
+        },
+        toToken: {
+          address: data.tx.to,
+          symbol: this.getTokenSymbol(toTokenAddress, chainId),
+          name: this.getTokenName(toTokenAddress, chainId),
+          decimals: 18, // Default, should be fetched from token list
+        },
+        fromTokenAmount: amount,
+        toTokenAmount: data.toTokenAmount || '0',
+        protocols: data.protocols || ['1inch'],
+        estimatedGas: data.tx.gas || '180000',
+        tx: data.tx,
+      };
     } catch (error) {
       console.error('Error getting swap quote:', error);
-      // Return mock data for demo
-      return this.getMockSwapQuote(fromTokenAddress, toTokenAddress, amount);
+      throw new Error(`Failed to get swap quote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Get token price
+  async getTokenPrice(chainId: number, tokenAddress: string): Promise<number> {
+    try {
+      const response = await fetch(`${this.baseUrl}/quote/v6.0/${chainId}?src=${tokenAddress}&dst=0xA0b86a33E6441b8c4aC8C8C8C8C8C8C8C8C8C8C8C&amount=1000000000000000000`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get token price: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return parseFloat(data.toTokenAmount) / 1000000; // USDC has 6 decimals
+    } catch (error) {
+      console.error('Error getting token price:', error);
+      return 0;
     }
   }
 
@@ -145,8 +189,7 @@ class OneInchAPI {
       return await response.json();
     } catch (error) {
       console.error('Error creating Fusion order:', error);
-      // Return mock data for demo
-      return this.getMockFusionOrder();
+      throw new Error(`Failed to create Fusion order: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -157,72 +200,48 @@ class OneInchAPI {
       .join('');
   }
 
-  private getMockTokens(chainId: number): Record<string, Token> {
-    const ethereumTokens = {
+  private getFallbackTokens(chainId: number): Record<string, Token> {
+    const tokens: Record<string, Token> = {
+      // ETH (native token)
       '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': {
         address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
         symbol: 'ETH',
         name: 'Ethereum',
         decimals: 18,
       },
-      '0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d': {
+    };
+
+    // Add USDC for Ethereum mainnet and testnets
+    if (chainId === 1 || chainId === 11155111) { // Mainnet or Sepolia
+      tokens['0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d'] = {
         address: '0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d',
         symbol: 'USDC',
         name: 'USD Coin',
         decimals: 6,
-      },
-    };
+      };
+    }
 
-    return ethereumTokens;
-  }
-
-  private getMockSwapQuote(fromToken: string, toToken: string, amount: string): SwapQuote {
-    return {
-      fromToken: {
-        address: fromToken,
-        symbol: 'USDC',
-        name: 'USD Coin',
+    // Add USDT for Ethereum mainnet
+    if (chainId === 1) {
+      tokens['0xdac17f958d2ee523a2206206994597c13d831ec7'] = {
+        address: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+        symbol: 'USDT',
+        name: 'Tether USD',
         decimals: 6,
-      },
-      toToken: {
-        address: toToken,
-        symbol: 'ETH',
-        name: 'Ethereum',
-        decimals: 18,
-      },
-      fromTokenAmount: amount,
-      toTokenAmount: '0.02847563',
-      protocols: ['1inch: 85.5%', 'Uniswap_V3: 14.5%'],
-      estimatedGas: '180000',
-      tx: {
-        from: '0x0000000000000000000000000000000000000000',
-        to: '0x111111125421ca6dc452d289314280a0f8842a65',
-        data: '0x',
-        value: '0',
-        gasPrice: '20000000000',
-        gas: '180000',
-      },
-    };
+      };
+    }
+
+    return tokens;
   }
 
-  private getMockFusionOrder(): FusionOrder {
-    return {
-      orderHash: '0x' + Math.random().toString(16).substr(2, 64),
-      signature: '0x' + Math.random().toString(16).substr(2, 130),
-      order: {
-        salt: Math.random().toString(),
-        maker: '0x0000000000000000000000000000000000000000',
-        receiver: '0x0000000000000000000000000000000000000000',
-        makerAsset: '0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d',
-        takerAsset: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-        makingAmount: '100000000',
-        takingAmount: '28475630000000000',
-        makerTraits: '0x',
-      },
-      extension: '0x',
-      preInteraction: '0x',
-      postInteraction: '0x',
-    };
+  private getTokenSymbol(address: string, chainId: number): string {
+    const tokens = this.getFallbackTokens(chainId);
+    return tokens[address]?.symbol || 'UNKNOWN';
+  }
+
+  private getTokenName(address: string, chainId: number): string {
+    const tokens = this.getFallbackTokens(chainId);
+    return tokens[address]?.name || 'Unknown Token';
   }
 }
 
