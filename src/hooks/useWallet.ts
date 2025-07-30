@@ -24,12 +24,23 @@ export const useWallet = () => {
 
   // Check if MetaMask is installed
   const isMetaMaskInstalled = () => {
-    return typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask;
+    const installed = typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask;
+    console.log('MetaMask installed check:', installed, { 
+      hasWindow: typeof window !== 'undefined', 
+      hasEthereum: typeof window !== 'undefined' && !!window.ethereum,
+      isMetaMask: typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask 
+    });
+    return installed;
   };
 
   // Check if Freighter is installed
   const isFreighterInstalled = () => {
-    return typeof window !== 'undefined' && window.freighter;
+    const installed = typeof window !== 'undefined' && window.freighter;
+    console.log('Freighter installed check:', installed, { 
+      hasWindow: typeof window !== 'undefined', 
+      hasFreighter: typeof window !== 'undefined' && !!window.freighter 
+    });
+    return installed;
   };
 
   // Get network name from chain ID

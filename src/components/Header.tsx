@@ -78,10 +78,12 @@ const Header = () => {
   };
 
   const handleWalletConnect = async (wallet: any) => {
+    console.log('Attempting to connect wallet:', wallet);
     setShowWalletSelector(false);
     setSelectedNetwork(null);
     
     if (!wallet.isInstalled) {
+      console.log('Wallet not installed, redirecting to download');
       // Open wallet download page
       if (wallet.id === "metamask") {
         window.open("https://metamask.io/download/", "_blank");
@@ -102,15 +104,19 @@ const Header = () => {
     }
 
     try {
+      console.log('Calling wallet connect function:', wallet.connect);
       await wallet.connect();
+      console.log('Wallet connected successfully');
       toast({
         title: "Wallet Connected",
-        description: `Connected to ${wallet.name}`,
+        description: `Successfully connected to ${wallet.name}`,
+        variant: "default"
       });
-    } catch (err: any) {
+    } catch (error) {
+      console.error('Wallet connection failed:', error);
       toast({
         title: "Connection Failed",
-        description: err.message,
+        description: error instanceof Error ? error.message : "Failed to connect wallet",
         variant: "destructive"
       });
     }
