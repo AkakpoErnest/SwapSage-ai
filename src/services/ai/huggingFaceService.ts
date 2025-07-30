@@ -13,6 +13,7 @@ export interface HuggingFaceConfig {
   apiKey?: string;
   model: string;
   maxTokens: number;
+  endpoint: string;
 }
 
 class HuggingFaceService {
@@ -21,15 +22,23 @@ class HuggingFaceService {
 
   constructor() {
     this.config = {
-      model: 'microsoft/DialoGPT-medium', // Free model
-      maxTokens: 150
+      model: 'microsoft/DialoGPT-medium',
+      maxTokens: 150,
+      endpoint: 'https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium'
     };
     this.checkConfiguration();
   }
 
   private checkConfiguration(): void {
-    // Hugging Face offers free API access without key for some models
-    this.isConfigured = true;
+    // Check if we have an API key (optional for some models)
+    const apiKey = import.meta.env.VITE_HUGGINGFACE_API_KEY;
+    if (apiKey) {
+      this.config.apiKey = apiKey;
+      this.isConfigured = true;
+    } else {
+      // Some models allow free access without API key
+      this.isConfigured = true;
+    }
   }
 
   isAvailable(): boolean {
@@ -38,8 +47,13 @@ class HuggingFaceService {
 
   async processCommand(userInput: string): Promise<HuggingFaceResponse> {
     try {
-      // For demo purposes, we'll use a smart local response system
-      // In production, you'd call Hugging Face API here
+      // Try real Hugging Face API first
+      const apiResponse = await this.callHuggingFaceAPI(userInput);
+      if (apiResponse.success) {
+        return apiResponse;
+      }
+      
+      // Fallback to smart local response if API fails
       return this.generateSmartResponse(userInput);
     } catch (error) {
       console.error('Hugging Face service error:', error);
@@ -47,10 +61,137 @@ class HuggingFaceService {
     }
   }
 
-  private generateSmartResponse(userInput: string): HuggingFaceResponse {
+  private async callHuggingFaceAPI(userInput: string): Promise<HuggingFaceResponse> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (this.config.apiKey) {
+        headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+      }
+
+      const response = await fetch(this.config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          inputs: userInput,
+          parameters: {
+            max_length: this.config.maxTokens,
+            temperature: 0.7,
+            do_sample: true,
+            return_full_text: false
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Process the API response
+      const generatedText = Array.isArray(data) ? data[0]?.generated_text : data.generated_text;
+      
+      if (!generatedText) {
+        throw new Error('No generated text in response');
+      }
+
+      // Parse the response to extract swap commands
+      const parsedCommand = this.parseResponseForSwapCommand(userInput, generatedText);
+      const language = this.detectLanguage(userInput);
+
+      return {
+        success: true,
+        message: this.formatAIResponse(generatedText, userInput),
+        parsedCommand,
+        confidence: parsedCommand ? 85 : 70,
+        language,
+        model: this.config.model
+      };
+
+    } catch (error) {
+      console.error('Hugging Face API call failed:', error);
+      throw error;
+    }
+  }
+
+  private parseResponseForSwapCommand(userInput: string, aiResponse: string): ParsedSwapCommand | undefined {
     const input = userInput.toLowerCase();
     
-    // Multi-language detection
+    // Check if this is a swap request
+    if (input.includes('swap') || input.includes('cambiar') || input.includes('échanger') || input.includes('交換')) {
+      // Extract swap details using regex patterns
+      const amountMatch = userInput.match(/(\d+(?:\.\d+)?)\s*(ETH|USDC|XLM|BTC)/i);
+      const fromToken = amountMatch?.[2] || 'ETH';
+      const amount = amountMatch?.[1] || '1';
+      
+      const toTokenMatch = userInput.match(/to\s+(\w+)|por\s+(\w+)|vers\s+(\w+)|を\s*(\w+)/i);
+      const toToken = toTokenMatch?.[1] || toTokenMatch?.[2] || toTokenMatch?.[3] || toTokenMatch?.[4] || 'USDC';
+      
+      return {
+        action: 'swap',
+        fromAmount: amount,
+        fromToken,
+        fromChain: 'ethereum',
+        toToken,
+        toChain: 'ethereum',
+        recipientAddress: '',
+        slippage: 0.5,
+        confidence: 85
+      };
+    }
+
+    // Check for price requests
+    if (input.includes('price') || input.includes('precio') || input.includes('prix') || input.includes('価格')) {
+      return {
+        action: 'quote',
+        fromAmount: '1',
+        fromToken: 'ETH',
+        fromChain: 'ethereum',
+        toToken: 'USDC',
+        toChain: 'ethereum',
+        recipientAddress: '',
+        slippage: 0.5,
+        confidence: 90
+      };
+    }
+
+    return undefined;
+  }
+
+  private formatAIResponse(aiResponse: string, userInput: string): string {
+    // Clean up the AI response and make it more conversational
+    let response = aiResponse.trim();
+    
+    // Remove any incomplete sentences at the end
+    response = response.replace(/[^.!?]*$/, '');
+    
+    // If the response is too short or generic, enhance it
+    if (response.length < 20) {
+      return this.enhanceShortResponse(userInput, response);
+    }
+    
+    return response;
+  }
+
+  private enhanceShortResponse(userInput: string, shortResponse: string): string {
+    const input = userInput.toLowerCase();
+    
+    if (input.includes('swap') || input.includes('cambiar') || input.includes('échanger')) {
+      return `I understand you want to make a swap! ${shortResponse}\n\nLet me help you find the best route and get you a quote. What tokens would you like to swap?`;
+    }
+    
+    if (input.includes('price') || input.includes('precio') || input.includes('prix')) {
+      return `I'd be happy to help you with price information! ${shortResponse}\n\nHere are the current market prices:\n\n💰 ETH: $3,200.50\n💵 USDC: $1.00\n🌟 XLM: $0.12\n🪙 BTC: $43,500.00`;
+    }
+    
+    return shortResponse;
+  }
+
+  private generateSmartResponse(userInput: string): HuggingFaceResponse {
+    const input = userInput.toLowerCase();
     const language = this.detectLanguage(input);
     
     // Smart command parsing
