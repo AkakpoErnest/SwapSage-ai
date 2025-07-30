@@ -174,13 +174,14 @@ const Header = () => {
             variant="outline" 
             size="sm"
             onClick={() => console.log('Test button clicked')}
+            className="transition-all duration-300 hover:scale-105 hover:shadow-lg"
           >
             Test Button
           </Button>
           
           {/* Simple HTML button test */}
           <button 
-            className="bg-blue-500 text-white px-4 py-2 rounded"
+            className="bg-blue-500 text-white px-4 py-2 rounded transition-all duration-300 hover:scale-105 hover:bg-blue-600 hover:shadow-lg transform"
             onClick={() => console.log('HTML button clicked')}
           >
             HTML Test
@@ -188,16 +189,16 @@ const Header = () => {
           
           {!walletState.isConnected ? (
             <button 
-              className="bg-green-500 text-white px-4 py-2 rounded flex items-center gap-2"
+              className="wallet-connect-btn text-white px-6 py-3 rounded-lg flex items-center gap-2 animate-pulse"
               onClick={() => setShowWalletSelector(!showWalletSelector)}
             >
-              <span>🔗</span>
+              <span className="animate-bounce">🔗</span>
               Connect Wallet
-              <span>▼</span>
+              <span className={`transition-transform duration-300 ${showWalletSelector ? 'rotate-180' : ''}`}>▼</span>
             </button>
           ) : (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-neon-cyan border-neon-cyan/30">
+            <div className="flex items-center gap-2 animate-fade-in">
+              <Badge variant="outline" className="text-neon-cyan border-neon-cyan/30 animate-pulse">
                 {walletState.network}
               </Badge>
               <span className="text-sm text-muted-foreground">
@@ -207,7 +208,7 @@ const Header = () => {
                 variant="outline" 
                 size="sm"
                 onClick={handleDisconnect}
-                className="text-red-400 hover:bg-red-400/10"
+                className="text-red-400 hover:bg-red-400/10 transition-all duration-300 hover:scale-105"
               >
                 Disconnect
               </Button>
@@ -223,33 +224,34 @@ const Header = () => {
 
           {/* Wallet Selector Dropdown */}
           {showWalletSelector && (
-            <div className="absolute top-full right-0 mt-2 w-96 z-50">
-              <Card className="p-4 bg-space-gray/95 border-neon-cyan/20 backdrop-blur-sm">
+            <div className="absolute top-full right-0 mt-2 w-96 z-50 animate-in slide-in-from-top-2 duration-300">
+              <Card className="p-4 bg-space-gray/95 border-neon-cyan/20 backdrop-blur-sm shadow-2xl">
                 {!selectedNetwork ? (
                   <>
-                    <h4 className="font-medium text-white mb-4 flex items-center gap-2">
-                      <Network className="w-4 h-4" />
+                    <h4 className="font-medium text-white mb-4 flex items-center gap-2 animate-fade-in">
+                      <Network className="w-4 h-4 animate-pulse" />
                       Select Network
                     </h4>
                     <div className="space-y-3">
-                      {networks.map((network) => (
+                      {networks.map((network, index) => (
                         <div
                           key={network.id}
                           onClick={() => handleNetworkSelect(network.id)}
-                          className="p-4 rounded-lg border border-border hover:border-neon-cyan/40 cursor-pointer transition-all hover:bg-space-gray/50"
+                          className="p-4 rounded-lg border border-border hover:border-neon-cyan/40 cursor-pointer transition-all duration-300 hover:bg-space-gray/50 hover:scale-105 hover:shadow-lg transform animate-in slide-in-from-right-2"
+                          style={{ animationDelay: `${index * 100}ms` }}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="text-2xl">{network.icon}</div>
+                              <div className="text-2xl animate-bounce">{network.icon}</div>
                               <div>
                                 <h5 className="font-medium text-white">{network.name}</h5>
                                 <p className="text-sm text-muted-foreground">{network.description}</p>
-                                <Badge variant="outline" className="text-xs text-green-400 border-green-400/30 mt-1">
+                                <Badge variant="outline" className="text-xs text-green-400 border-green-400/30 mt-1 animate-pulse">
                                   {network.testnet}
                                 </Badge>
                               </div>
                             </div>
-                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                            <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform duration-300 group-hover:translate-x-1" />
                           </div>
                         </div>
                       ))}
@@ -257,28 +259,29 @@ const Header = () => {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2 mb-4">
+                    <div className="flex items-center gap-2 mb-4 animate-fade-in">
                       <button
                         onClick={() => setSelectedNetwork(null)}
-                        className="text-muted-foreground hover:text-white"
+                        className="text-muted-foreground hover:text-white transition-colors duration-300 hover:scale-110 transform"
                       >
                         <ArrowRight className="w-4 h-4 rotate-180" />
                       </button>
                       <h4 className="font-medium text-white flex items-center gap-2">
-                        <WalletIcon className="w-4 h-4" />
+                        <WalletIcon className="w-4 h-4 animate-pulse" />
                         Select Wallet
                       </h4>
                     </div>
                     <div className="space-y-3">
-                      {getWalletsForNetwork(selectedNetwork).map((wallet) => (
+                      {getWalletsForNetwork(selectedNetwork).map((wallet, index) => (
                         <div
                           key={wallet.id}
                           onClick={() => handleWalletConnect(wallet)}
-                          className="p-4 rounded-lg border border-border hover:border-neon-cyan/40 cursor-pointer transition-all hover:bg-space-gray/50"
+                          className="p-4 rounded-lg border border-border hover:border-neon-cyan/40 cursor-pointer transition-all duration-300 hover:bg-space-gray/50 hover:scale-105 hover:shadow-lg transform animate-in slide-in-from-left-2"
+                          style={{ animationDelay: `${index * 100}ms` }}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="text-2xl">{wallet.icon}</div>
+                              <div className="text-2xl animate-bounce">{wallet.icon}</div>
                               <div>
                                 <h5 className="font-medium text-white">{wallet.name}</h5>
                                 <p className="text-sm text-muted-foreground">{wallet.description}</p>
@@ -286,12 +289,12 @@ const Header = () => {
                             </div>
                             <div className="flex items-center gap-2">
                               {wallet.isInstalled ? (
-                                <div className="flex items-center gap-1 text-xs text-green-400">
+                                <div className="flex items-center gap-1 text-xs text-green-400 animate-pulse">
                                   <CheckCircle className="w-3 h-3" />
                                   Installed
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-1 text-xs text-orange-400">
+                                <div className="flex items-center gap-1 text-xs text-orange-400 animate-pulse">
                                   <ExternalLink className="w-3 h-3" />
                                   Install
                                 </div>
