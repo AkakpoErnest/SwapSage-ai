@@ -73,6 +73,8 @@ export const useWallet = () => {
     setError(null);
 
     try {
+      console.log('Connecting to Ethereum wallet...');
+      
       // Request account access
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts'
@@ -82,11 +84,20 @@ export const useWallet = () => {
         throw new Error('No accounts found');
       }
 
+      console.log('Accounts found:', accounts);
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
       const network = await provider.getNetwork();
       const balance = await provider.getBalance(address);
+
+      console.log('Wallet connected:', {
+        address,
+        chainId: Number(network.chainId),
+        balance: ethers.formatEther(balance),
+        network: getNetworkName(Number(network.chainId))
+      });
 
       setWalletState({
         isConnected: true,
@@ -98,6 +109,7 @@ export const useWallet = () => {
       });
 
     } catch (err: any) {
+      console.error('Ethereum connection error:', err);
       setError({
         message: err.message || 'Failed to connect to MetaMask',
         code: err.code
@@ -234,6 +246,24 @@ export const useWallet = () => {
     setError(null);
   }, []);
 
+  // Refresh wallet balance
+  const refreshBalance = useCallback(async () => {
+    if (!walletState.isConnected || !walletState.address || !walletState.provider) {
+      return;
+    }
+
+    try {
+      const balance = await walletState.provider.getBalance(walletState.address);
+      setWalletState(prev => ({
+        ...prev,
+        balance: ethers.formatEther(balance)
+      }));
+      console.log('Balance refreshed:', ethers.formatEther(balance));
+    } catch (error) {
+      console.error('Failed to refresh balance:', error);
+    }
+  }, [walletState.isConnected, walletState.address, walletState.provider]);
+
   // Listen for account changes
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -275,6 +305,7 @@ export const useWallet = () => {
     connectEthereum,
     connectStellar,
     switchEthereumNetwork,
-    disconnect
+    disconnect,
+    refreshBalance
   };
 };

@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownUp, Settings, Info, AlertCircle, CheckCircle, Loader2, TrendingUp } from "lucide-react";
+import { ArrowDownUp, Settings, Info, AlertCircle, CheckCircle, Loader2, TrendingUp, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { transactionMonitor } from "@/services/transactionMonitor";
 import { oneInchAPI, type SwapQuote } from "@/services/api/oneinch";
@@ -65,7 +65,7 @@ const SwapInterface = () => {
   const [slippage, setSlippage] = useState(0.5);
   const [availableTokens, setAvailableTokens] = useState<Record<string, any>>({});
   const { toast } = useToast();
-  const { walletState } = useWallet();
+  const { walletState, refreshBalance } = useWallet();
 
   // Load available tokens on component mount
   useEffect(() => {
@@ -343,16 +343,28 @@ const SwapInterface = () => {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm text-muted-foreground">From</label>
-            <span className="text-xs text-muted-foreground">
-              Balance: {walletState.isConnected ? "1,234.56" : "0.00"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Balance: {walletState.isConnected && walletState.balance ? `${parseFloat(walletState.balance).toFixed(4)} ETH` : "0.00"}
+              </span>
+              {walletState.isConnected && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={refreshBalance}
+                  className="h-6 w-6 p-0"
+                >
+                  <ArrowRight className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <Input
               placeholder="0.0"
               value={fromAmount}
               onChange={(e) => setFromAmount(e.target.value)}
-              className="flex-1 text-lg h-14 bg-space-gray border-border focus:border-neon-cyan/40"
+              className="flex-1 text-lg h-14 bg-space-gray border-border"
               disabled={!walletState.isConnected}
             />
             <Select onValueChange={(value) => {
