@@ -4,9 +4,9 @@ import AIChat from "@/components/AIChat";
 import SwapInterface from "@/components/SwapInterface";
 import TransactionProgress from "@/components/TransactionProgress";
 import NetworkSelector from "@/components/NetworkSelector";
-
 import SmartContractIntegration from "@/components/SmartContractIntegration";
 import Dashboard from "@/components/Dashboard";
+import AnimatedBackground from "@/components/AnimatedBackground";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const Index = () => {
@@ -19,7 +19,8 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("swap");
 
   return (
-    <div className="min-h-screen bg-gradient-space">
+    <div className="min-h-screen bg-gradient-space relative">
+      <AnimatedBackground />
       <Header />
       
       {/* Hero Section */}
@@ -30,10 +31,10 @@ const Index = () => {
         <div className="absolute inset-0 bg-deep-space/80 backdrop-blur-sm" />
         <div className="relative container mx-auto text-center">
           <div className="max-w-4xl mx-auto space-y-6">
-            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-primary bg-clip-text text-transparent animate-float">
               SwapSage AI
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground">
+            <p className="text-xl md:text-2xl text-muted-foreground animate-pulse-glow">
               Ask. Swap. Done.
             </p>
             <p className="text-lg text-foreground/80 max-w-2xl mx-auto">
@@ -222,24 +223,24 @@ const Index = () => {
           </div>
           
           <div className="grid md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-lg bg-gradient-card border border-neon-cyan/20 text-center">
-              <div className="text-3xl mb-4">🔄</div>
+            <div className="p-6 rounded-lg bg-gradient-card border border-neon-cyan/20 text-center card-glow particle-effect animate-float">
+              <div className="text-3xl mb-4 animate-pulse-glow">🔄</div>
               <h3 className="font-semibold mb-2">1inch Integration</h3>
               <p className="text-sm text-muted-foreground">
                 Best swap rates using 1inch Aggregation API and Fusion+ for cross-chain execution
               </p>
             </div>
             
-            <div className="p-6 rounded-lg bg-gradient-card border border-neon-purple/20 text-center">
-              <div className="text-3xl mb-4">🔒</div>
+            <div className="p-6 rounded-lg bg-gradient-card border border-neon-purple/20 text-center card-glow particle-effect animate-float" style={{ animationDelay: '2s' }}>
+              <div className="text-3xl mb-4 animate-pulse-glow">🔒</div>
               <h3 className="font-semibold mb-2">Atomic Swaps</h3>
               <p className="text-sm text-muted-foreground">
                 Secure Hash Time Lock Contracts (HTLC) ensure trustless cross-chain transactions
               </p>
             </div>
             
-            <div className="p-6 rounded-lg bg-gradient-card border border-neon-green/20 text-center">
-              <div className="text-3xl mb-4">🧠</div>
+            <div className="p-6 rounded-lg bg-gradient-card border border-neon-green/20 text-center card-glow particle-effect animate-float" style={{ animationDelay: '4s' }}>
+              <div className="text-3xl mb-4 animate-pulse-glow">🧠</div>
               <h3 className="font-semibold mb-2">AI-Powered</h3>
               <p className="text-sm text-muted-foreground">
                 Natural language processing transforms your words into perfect swap instructions
