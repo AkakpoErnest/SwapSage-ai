@@ -166,9 +166,8 @@ const Header = () => {
         <div className="flex items-center gap-3 relative">
           {!walletState.isConnected ? (
             <Button 
-              variant="chain" 
+              variant="default" 
               size="sm" 
-              className="hidden sm:flex"
               onClick={() => setShowWalletSelector(!showWalletSelector)}
             >
               <WalletIcon className="w-4 h-4" />
