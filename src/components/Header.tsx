@@ -178,16 +178,23 @@ const Header = () => {
             Test Button
           </Button>
           
+          {/* Simple HTML button test */}
+          <button 
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+            onClick={() => console.log('HTML button clicked')}
+          >
+            HTML Test
+          </button>
+          
           {!walletState.isConnected ? (
-            <Button 
-              variant="default" 
-              size="sm" 
+            <button 
+              className="bg-green-500 text-white px-4 py-2 rounded flex items-center gap-2"
               onClick={() => setShowWalletSelector(!showWalletSelector)}
             >
-              <WalletIcon className="w-4 h-4" />
+              <span>🔗</span>
               Connect Wallet
-              <ChevronDown className="w-4 h-4 ml-1" />
-            </Button>
+              <span>▼</span>
+            </button>
           ) : (
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-neon-cyan border-neon-cyan/30">
