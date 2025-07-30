@@ -348,8 +348,8 @@ All colors MUST be HSL.
 
 /* Wallet connect specific animations */
 .wallet-connect-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  border: 1px solid rgba(30, 58, 138, 0.3);
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -371,6 +371,6 @@ All colors MUST be HSL.
 }
 
 .wallet-connect-btn:hover {
-  box-shadow: 0 0 25px rgba(16, 185, 129, 0.6);
+  box-shadow: 0 0 25px rgba(30, 58, 138, 0.6);
   transform: translateY(-2px) scale(1.05);
 }

@@ -192,7 +192,6 @@ const Header = () => {
               className="wallet-connect-btn text-white px-6 py-3 rounded-lg flex items-center gap-2 animate-pulse"
               onClick={() => setShowWalletSelector(!showWalletSelector)}
             >
-              <span className="animate-bounce">🔗</span>
               Connect Wallet
               <span className={`transition-transform duration-300 ${showWalletSelector ? 'rotate-180' : ''}`}>▼</span>
             </button>

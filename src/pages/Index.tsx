@@ -1,12 +1,28 @@
 import { useState } from "react";
-import AIChat from "@/components/AIChat";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Coins, 
+  Network, 
+  Activity, 
+  Bot, 
+  Zap, 
+  Shield, 
+  Settings, 
+  WalletIcon,
+  ArrowRight,
+  CheckCircle,
+  AlertCircle,
+  BarChart3
+} from "lucide-react";
 import SwapInterface from "@/components/SwapInterface";
-import TransactionProgress from "@/components/TransactionProgress";
-import NetworkSelector from "@/components/NetworkSelector";
-import SmartContractIntegration from "@/components/SmartContractIntegration";
+import AIChat from "@/components/AIChat";
 import Dashboard from "@/components/Dashboard";
+import SmartContractIntegration from "@/components/SmartContractIntegration";
+import TransactionProgress from "@/components/TransactionProgress";
+import Header from "@/components/Header";
 import { useWallet } from "@/hooks/useWallet";
-import { Coins, Network, Activity, Bot, Zap, BarChart3, Settings, Shield } from "lucide-react";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("swap");
@@ -58,6 +74,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-space">
+      <Header /> {/* Add the Header component here */}
+      
       {/* Hero Section */}
       <section className="relative py-20 px-4">
         <div className="container mx-auto text-center">
@@ -108,13 +126,23 @@ const Index = () => {
             </div>
             <div>
               <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
-                <Network className="w-8 h-8 text-neon-cyan" />
-                Network Selection
+                <Activity className="w-8 h-8 text-neon-cyan" />
+                Transaction Monitor
               </h2>
               <p className="text-muted-foreground mb-6">
-                Choose your preferred blockchain network and manage your connections.
+                Track your swap transactions in real-time with detailed progress updates.
               </p>
-              <NetworkSelector />
+              <div className="bg-card/30 backdrop-blur-sm rounded-lg p-4 border border-neon-cyan/20">
+                <p className="text-center text-muted-foreground mb-4">
+                  Monitor your transactions in the Transaction Progress tab above
+                </p>
+                <div className="text-center">
+                  <Activity className="w-12 h-12 mx-auto mb-2 text-neon-cyan" />
+                  <p className="text-sm text-muted-foreground">
+                    Real-time status updates and confirmations
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
