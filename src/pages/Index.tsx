@@ -7,6 +7,7 @@ import NetworkSelector from "@/components/NetworkSelector";
 import SmartContractIntegration from "@/components/SmartContractIntegration";
 import Dashboard from "@/components/Dashboard";
 import AnimatedBackground from "@/components/AnimatedBackground";
+import { Coins, Network, Activity, Bot, Zap, BarChart3, Settings, Shield } from "lucide-react";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const Index = () => {
@@ -68,43 +69,47 @@ const Index = () => {
             <div className="flex space-x-1 bg-space-gray rounded-lg p-1">
               <button
                 onClick={() => setActiveTab("swap")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
                   activeTab === "swap"
                     ? "bg-neon-cyan text-black shadow-lg"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
-                🔄 Swap Interface
+                <Coins className="w-4 h-4" />
+                Swap Interface
               </button>
               <button
                 onClick={() => setActiveTab("contracts")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
                   activeTab === "contracts"
                     ? "bg-neon-cyan text-black shadow-lg"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
-                🔗 Smart Contracts
+                <Zap className="w-4 h-4" />
+                Smart Contracts
               </button>
               <button
                 onClick={() => setActiveTab("dashboard")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
                   activeTab === "dashboard"
                     ? "bg-neon-cyan text-black shadow-lg"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
-                📊 Dashboard
+                <BarChart3 className="w-4 h-4" />
+                Dashboard
               </button>
               <button
                 onClick={() => setActiveTab("ai")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all ${
+                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
                   activeTab === "ai"
                     ? "bg-neon-cyan text-black shadow-lg"
                     : "text-muted-foreground hover:text-white"
                 }`}
               >
-                🤖 AI Assistant
+                <Bot className="w-4 h-4" />
+                AI Assistant
               </button>
             </div>
           </div>
@@ -113,8 +118,9 @@ const Index = () => {
           {activeTab === "swap" && (
             <div className="space-y-8">
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4">
-                  ⚡ Swap Interface
+                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
+                  <Coins className="w-8 h-8 text-neon-cyan" />
+                  Swap Interface
                 </h2>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                   Execute cross-chain swaps with real-time quotes and transaction monitoring.
@@ -133,8 +139,9 @@ const Index = () => {
           {activeTab === "contracts" && (
             <div className="space-y-8">
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4">
-                  🔗 Smart Contract Integration
+                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
+                  <Zap className="w-8 h-8 text-neon-cyan" />
+                  Smart Contract Integration
                 </h2>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                   Live price feeds, atomic swaps, and real-time contract interactions powered by Chainlink and 1inch.
@@ -150,8 +157,9 @@ const Index = () => {
           {activeTab === "dashboard" && (
             <div className="space-y-8">
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4">
-                  📊 System Dashboard
+                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
+                  <BarChart3 className="w-8 h-8 text-neon-cyan" />
+                  System Dashboard
                 </h2>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                   Real-time monitoring of all system activities, transactions, and network status.
@@ -167,8 +175,9 @@ const Index = () => {
           {activeTab === "ai" && (
             <div className="space-y-8">
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4">
-                  🤖 AI Assistant
+                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
+                  <Bot className="w-8 h-8 text-neon-cyan" />
+                  AI Assistant
                 </h2>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                   Natural language interface for executing swaps and getting market insights.
@@ -224,7 +233,9 @@ const Index = () => {
           
           <div className="grid md:grid-cols-3 gap-6">
             <div className="p-6 rounded-lg bg-gradient-card border border-neon-cyan/20 text-center card-glow particle-effect animate-float">
-              <div className="text-3xl mb-4 animate-pulse-glow">🔄</div>
+              <div className="mb-4 animate-pulse-glow">
+                <Zap className="w-12 h-12 text-neon-cyan mx-auto" />
+              </div>
               <h3 className="font-semibold mb-2">1inch Integration</h3>
               <p className="text-sm text-muted-foreground">
                 Best swap rates using 1inch Aggregation API and Fusion+ for cross-chain execution
@@ -232,7 +243,9 @@ const Index = () => {
             </div>
             
             <div className="p-6 rounded-lg bg-gradient-card border border-neon-purple/20 text-center card-glow particle-effect animate-float" style={{ animationDelay: '2s' }}>
-              <div className="text-3xl mb-4 animate-pulse-glow">🔒</div>
+              <div className="mb-4 animate-pulse-glow">
+                <Shield className="w-12 h-12 text-neon-purple mx-auto" />
+              </div>
               <h3 className="font-semibold mb-2">Atomic Swaps</h3>
               <p className="text-sm text-muted-foreground">
                 Secure Hash Time Lock Contracts (HTLC) ensure trustless cross-chain transactions
@@ -240,7 +253,9 @@ const Index = () => {
             </div>
             
             <div className="p-6 rounded-lg bg-gradient-card border border-neon-green/20 text-center card-glow particle-effect animate-float" style={{ animationDelay: '4s' }}>
-              <div className="text-3xl mb-4 animate-pulse-glow">🧠</div>
+              <div className="mb-4 animate-pulse-glow">
+                <Bot className="w-12 h-12 text-neon-green mx-auto" />
+              </div>
               <h3 className="font-semibold mb-2">AI-Powered</h3>
               <p className="text-sm text-muted-foreground">
                 Natural language processing transforms your words into perfect swap instructions
