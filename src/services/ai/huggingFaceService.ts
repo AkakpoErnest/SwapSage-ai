@@ -47,13 +47,19 @@ class HuggingFaceService {
 
   async processCommand(userInput: string): Promise<HuggingFaceResponse> {
     try {
-      // Try real Hugging Face API first
-      const apiResponse = await this.callHuggingFaceAPI(userInput);
-      if (apiResponse.success) {
-        return apiResponse;
+      // Try real Hugging Face API first (only if we have an API key)
+      if (this.config.apiKey) {
+        try {
+          const apiResponse = await this.callHuggingFaceAPI(userInput);
+          if (apiResponse.success) {
+            return apiResponse;
+          }
+        } catch (error) {
+          console.log('Hugging Face API failed, using local fallback:', error);
+        }
       }
       
-      // Fallback to smart local response if API fails
+      // Always fallback to smart local response
       return this.generateSmartResponse(userInput);
     } catch (error) {
       console.error('Hugging Face service error:', error);

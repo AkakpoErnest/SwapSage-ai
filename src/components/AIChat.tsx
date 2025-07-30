@@ -49,15 +49,13 @@ const AIChat = () => {
     setIsProcessing(true);
 
     try {
-      // First try Hugging Face AI if available, then fallback to local parser
+      // Try Hugging Face AI first, then fallback to local parser
       let huggingFaceResponse: HuggingFaceResponse | null = null;
       
-      if (huggingFaceService.isAvailable()) {
-        try {
-          huggingFaceResponse = await huggingFaceService.processCommand(userInput);
-        } catch (error) {
-          console.log('Hugging Face AI failed, falling back to local parser');
-        }
+      try {
+        huggingFaceResponse = await huggingFaceService.processCommand(userInput);
+      } catch (error) {
+        console.log('AI service failed, using local parser:', error);
       }
 
       // Use AI response if available and successful
