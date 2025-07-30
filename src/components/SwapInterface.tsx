@@ -118,47 +118,81 @@ const SwapInterface = () => {
   }, [fromAmount, fromToken, toToken]);
 
   const calculateQuote = async () => {
-    if (!fromAmount || !fromToken || !toToken || !walletState.isConnected) return;
-
-    // Skip if it's a cross-chain swap (Stellar)
-    if (fromToken.chain === "Stellar" || toToken.chain === "Stellar") {
-      // For cross-chain swaps, we'll use a different approach
-      const mockQuote = {
-        fromToken: fromToken.symbol,
-        toToken: toToken.symbol,
-        fromAmount: fromAmount,
-        toAmount: (parseFloat(fromAmount) * (fromToken.symbol === "ETH" ? 3200 : 1)).toFixed(6),
-        fee: (parseFloat(fromAmount) * 0.003).toFixed(6),
-        slippage: slippage,
-        estimatedTime: "2-5 minutes",
-        bridgeFee: "~$2.50"
-      };
-      setSwapQuote(mockQuote as any);
-      setEstimatedOutput(mockQuote.toAmount);
+    if (!fromAmount || !fromToken || !toToken || !walletState.isConnected) {
+      console.log('Quote calculation blocked:', {
+        noAmount: !fromAmount,
+        noFromToken: !fromToken,
+        noToToken: !toToken,
+        notConnected: !walletState.isConnected
+      });
       return;
     }
 
     try {
       setIsLoading(true);
-      
-      // Use real 1inch API for same-chain swaps
-      const quote = await oneInchAPI.getSwapQuote(
-        1, // Ethereum mainnet
-        fromToken.address,
-        toToken.address,
-        (parseFloat(fromAmount) * Math.pow(10, fromToken.decimals)).toString(),
-        walletState.address,
-        slippage
-      );
+      console.log('Calculating quote for:', {
+        fromToken: fromToken.symbol,
+        toToken: toToken.symbol,
+        amount: fromAmount,
+        walletAddress: walletState.address
+      });
 
-      setSwapQuote(quote);
-      setEstimatedOutput(quote.toTokenAmount);
-      
+      // For same-chain swaps, use 1inch API
+      if (fromToken.chain === toToken.chain) {
+        console.log('Getting 1inch quote for same-chain swap');
+        const quote = await oneInchAPI.getSwapQuote(
+          1, // Ethereum mainnet
+          fromToken.address,
+          toToken.address,
+          (parseFloat(fromAmount) * Math.pow(10, fromToken.decimals)).toString(),
+          walletState.address || '',
+          slippage
+        );
+        
+        console.log('1inch quote received:', quote);
+        setSwapQuote(quote);
+        setEstimatedOutput((parseFloat(quote.toTokenAmount) / Math.pow(10, quote.toToken.decimals)).toFixed(6));
+      } else {
+        console.log('Simulating cross-chain quote');
+        // For cross-chain swaps, simulate a quote
+        const estimatedAmount = parseFloat(fromAmount) * (fromToken.symbol === 'ETH' ? 3200 : 1);
+        setEstimatedOutput(estimatedAmount.toFixed(6));
+        
+        // Create a mock quote for cross-chain
+        const mockQuote: SwapQuote = {
+          fromToken: {
+            address: fromToken.address,
+            symbol: fromToken.symbol,
+            name: fromToken.name,
+            decimals: fromToken.decimals
+          },
+          toToken: {
+            address: toToken.address,
+            symbol: toToken.symbol,
+            name: toToken.name,
+            decimals: toToken.decimals
+          },
+          fromTokenAmount: fromAmount,
+          toTokenAmount: estimatedAmount.toString(),
+          protocols: ['1inch Fusion+', 'Stargate'],
+          estimatedGas: '150000',
+          tx: {
+            from: walletState.address || '',
+            to: '0x1111111254fb6c44bAC0beD2854e76F90643097d',
+            data: '0x',
+            value: '0',
+            gasPrice: '20000000000',
+            gas: '150000'
+          }
+        };
+        
+        setSwapQuote(mockQuote);
+      }
     } catch (error) {
       console.error('Quote calculation error:', error);
       toast({
         title: "Quote Error",
-        description: error instanceof Error ? error.message : "Failed to get swap quote",
+        description: error instanceof Error ? error.message : "Failed to get quote",
         variant: "destructive",
       });
     } finally {
@@ -167,13 +201,31 @@ const SwapInterface = () => {
   };
 
   const executeSwap = async () => {
-    if (!swapQuote || !fromToken || !toToken || !walletState.isConnected) return;
+    console.log('Execute swap called with:', {
+      swapQuote: !!swapQuote,
+      fromToken,
+      toToken,
+      walletConnected: walletState.isConnected,
+      walletAddress: walletState.address,
+      provider: !!walletState.provider
+    });
+
+    if (!swapQuote || !fromToken || !toToken || !walletState.isConnected) {
+      console.log('Swap blocked because:', {
+        noSwapQuote: !swapQuote,
+        noFromToken: !fromToken,
+        noToToken: !toToken,
+        notConnected: !walletState.isConnected
+      });
+      return;
+    }
 
     try {
       setIsLoading(true);
       
       // For cross-chain swaps, still use simulation
       if (fromToken.chain !== toToken.chain) {
+        console.log('Executing cross-chain swap simulation');
         const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
         
         await transactionMonitor.addTransaction(txHash, {
@@ -188,16 +240,21 @@ const SwapInterface = () => {
           description: `Transaction submitted: ${txHash.slice(0, 8)}...`,
         });
       } else {
-        // For same-chain swaps, use real transaction
+        console.log('Executing same-chain swap with real transaction');
         const txData = swapQuote.tx;
         
         // Sign and send transaction
-        const txHash = await walletState.provider.getSigner().sendTransaction({
+        const signer = walletState.provider.getSigner();
+        console.log('Got signer:', !!signer);
+        
+        const txHash = await signer.sendTransaction({
           to: txData.to,
           data: txData.data,
           value: txData.value,
           gasLimit: txData.gas
         });
+        
+        console.log('Transaction sent:', txHash.hash);
         
         await transactionMonitor.addTransaction(txHash.hash, {
           fromToken: fromToken.symbol,
@@ -218,9 +275,10 @@ const SwapInterface = () => {
       setSwapQuote(null);
       
     } catch (error) {
+      console.error('Swap execution error:', error);
       toast({
         title: "Swap Error",
-        description: "Failed to execute swap",
+        description: error instanceof Error ? error.message : "Failed to execute swap",
         variant: "destructive",
       });
     } finally {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,11 +26,6 @@ const Header = () => {
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const { toast } = useToast();
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Wallet state:', walletState, 'Is connected:', walletState.isConnected);
-  }, [walletState]);
 
   const networks = [
     {
@@ -169,24 +164,6 @@ const Header = () => {
 
         {/* Actions */}
         <div className="flex items-center gap-3 relative">
-          {/* Test button to verify button component works */}
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => console.log('Test button clicked')}
-            className="transition-all duration-300 hover:scale-105 hover:shadow-lg"
-          >
-            Test Button
-          </Button>
-          
-          {/* Simple HTML button test */}
-          <button 
-            className="bg-blue-500 text-white px-4 py-2 rounded transition-all duration-300 hover:scale-105 hover:bg-blue-600 hover:shadow-lg transform"
-            onClick={() => console.log('HTML button clicked')}
-          >
-            HTML Test
-          </button>
-          
           {!walletState.isConnected ? (
             <button 
               className="wallet-connect-btn text-white px-6 py-3 rounded-lg flex items-center gap-2 animate-pulse"
