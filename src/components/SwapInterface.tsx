@@ -89,6 +89,14 @@ const SwapInterface = () => {
     }
   }, [walletState.isConnected, walletState.provider]);
 
+  // Auto-calculate quote when amount or tokens change
+  useEffect(() => {
+    if (fromAmount && fromToken && toToken && walletState.isConnected) {
+      console.log('Auto-calculating quote due to changes');
+      calculateQuote();
+    }
+  }, [fromAmount, fromToken, toToken, walletState.isConnected]);
+
   const loadAvailableTokens = async () => {
     try {
       // Load tokens for Ethereum mainnet (chainId: 1)
@@ -314,6 +322,19 @@ const SwapInterface = () => {
             <div className="flex items-center gap-2 text-yellow-500">
               <AlertCircle className="w-4 h-4" />
               <span className="text-sm">Connect your wallet to start swapping</span>
+            </div>
+          </div>
+        )}
+
+        {/* Debug Info */}
+        {walletState.isConnected && (
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-blue-500">
+              <CheckCircle className="w-4 h-4" />
+              <span className="text-sm">Wallet Connected: {walletState.address?.slice(0, 6)}...{walletState.address?.slice(-4)}</span>
+            </div>
+            <div className="text-xs text-blue-400 mt-1">
+              Network: {walletState.network} | Chain ID: {walletState.chainId}
             </div>
           </div>
         )}
