@@ -1,264 +1,176 @@
 import { useState } from "react";
-import Header from "@/components/Header";
 import AIChat from "@/components/AIChat";
 import SwapInterface from "@/components/SwapInterface";
 import TransactionProgress from "@/components/TransactionProgress";
 import NetworkSelector from "@/components/NetworkSelector";
 import SmartContractIntegration from "@/components/SmartContractIntegration";
 import Dashboard from "@/components/Dashboard";
-import AnimatedBackground from "@/components/AnimatedBackground";
+import { useWallet } from "@/hooks/useWallet";
 import { Coins, Network, Activity, Bot, Zap, BarChart3, Settings, Shield } from "lucide-react";
-import heroBackground from "@/assets/hero-background.jpg";
 
 const Index = () => {
-  // Mock wallet state - in real app this would come from useWallet hook
-  const mockWalletState = {
-    isConnected: true,
-    address: "0x1234567890123456789012345678901234567890"
+  const [activeTab, setActiveTab] = useState("swap");
+  const { walletState } = useWallet();
+
+  const tabs = [
+    { id: "swap", label: "Swap", icon: Coins },
+    { id: "bridge", label: "Bridge", icon: Network },
+    { id: "history", label: "History", icon: Activity },
+    { id: "contracts", label: "Smart Contracts", icon: Settings },
+    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "ai", label: "AI Assistant", icon: Bot },
+  ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "swap":
+        return <SwapInterface />;
+      case "bridge":
+        return (
+          <div className="text-center py-12">
+            <Network className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">Cross-Chain Bridge</h3>
+            <p className="text-muted-foreground">
+              Bridge tokens between Ethereum and Stellar networks
+            </p>
+          </div>
+        );
+      case "history":
+        return <TransactionProgress />;
+      case "contracts":
+        return <SmartContractIntegration 
+          walletAddress={walletState.address}
+          isConnected={walletState.isConnected}
+        />;
+      case "dashboard":
+        return (
+          <Dashboard 
+            walletAddress={walletState.address}
+            isConnected={walletState.isConnected}
+          />
+        );
+      case "ai":
+        return <AIChat />;
+      default:
+        return <SwapInterface />;
+    }
   };
 
-  const [activeTab, setActiveTab] = useState("swap");
-
   return (
-    <div className="min-h-screen bg-gradient-space relative">
-      <AnimatedBackground />
-      <Header />
-      
+    <div className="min-h-screen bg-gradient-space">
       {/* Hero Section */}
-      <section 
-        className="relative py-20 px-4 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(${heroBackground})` }}
-      >
-        <div className="absolute inset-0 bg-deep-space/80 backdrop-blur-sm" />
-        <div className="relative container mx-auto text-center">
-          <div className="max-w-4xl mx-auto space-y-6">
-            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-primary bg-clip-text text-transparent animate-float-subtle">
-              SwapSage AI
-            </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground">
-              Ask. Swap. Done.
-            </p>
-            <p className="text-lg text-foreground/80 max-w-2xl mx-auto">
-              The first AI-powered cross-chain DeFi assistant. Simply tell us what you want to swap 
-              and we'll handle the complex routing across Ethereum, Stellar, and beyond.
-            </p>
+      <section className="relative py-20 px-4">
+        <div className="container mx-auto text-center">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-float-subtle">
+            SwapSage AI Oracle
+          </h1>
+          <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+            The future of DeFi is here. Ask. Swap. Done.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
+            <div className="bg-card/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-neon-cyan/20">
+              <span className="text-neon-cyan">⚡ Lightning Fast</span>
+            </div>
+            <div className="bg-card/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-neon-cyan/20">
+              <span className="text-neon-cyan">🔒 Secure HTLC</span>
+            </div>
+            <div className="bg-card/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-neon-cyan/20">
+              <span className="text-neon-cyan">🤖 AI Powered</span>
+            </div>
           </div>
         </div>
       </section>
 
       {/* AI Assistant & Wallet Section */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold mb-4">
-            AI-Powered Cross-Chain Swaps
-          </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Just tell our AI what you want to swap. Natural language commands, intelligent routing, atomic execution.
-          </p>
-        </div>
-        <div className="max-w-4xl mx-auto">
-          <AIChat />
+      <section className="py-12 px-4">
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+              <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
+                <Bot className="w-8 h-8 text-neon-cyan" />
+                AI Assistant
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Chat with our AI to execute swaps using natural language. 
+                Support for multiple languages and intelligent routing.
+              </p>
+              <AIChat />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
+                <Network className="w-8 h-8 text-neon-cyan" />
+                Network Selection
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Choose your preferred blockchain network and manage your connections.
+              </p>
+              <NetworkSelector />
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Main Application Interface */}
       <section className="py-12 px-4">
-        <div className="container mx-auto max-w-7xl">
+        <div className="container mx-auto">
           {/* Tab Navigation */}
-          <div className="flex justify-center mb-8">
-            <div className="flex space-x-1 bg-space-gray rounded-lg p-1">
-              <button
-                onClick={() => setActiveTab("swap")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                  activeTab === "swap"
-                    ? "bg-neon-cyan text-black shadow-lg"
-                    : "text-muted-foreground hover:text-white"
-                }`}
-              >
-                <Coins className="w-4 h-4" />
-                Swap Interface
-              </button>
-              <button
-                onClick={() => setActiveTab("contracts")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                  activeTab === "contracts"
-                    ? "bg-neon-cyan text-black shadow-lg"
-                    : "text-muted-foreground hover:text-white"
-                }`}
-              >
-                <Zap className="w-4 h-4" />
-                Smart Contracts
-              </button>
-              <button
-                onClick={() => setActiveTab("dashboard")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                  activeTab === "dashboard"
-                    ? "bg-neon-cyan text-black shadow-lg"
-                    : "text-muted-foreground hover:text-white"
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                Dashboard
-              </button>
-              <button
-                onClick={() => setActiveTab("ai")}
-                className={`px-6 py-3 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                  activeTab === "ai"
-                    ? "bg-neon-cyan text-black shadow-lg"
-                    : "text-muted-foreground hover:text-white"
-                }`}
-              >
-                <Bot className="w-4 h-4" />
-                AI Assistant
-              </button>
-            </div>
+          <div className="flex flex-wrap justify-center gap-2 mb-8">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    activeTab === tab.id
+                      ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40"
+                      : "bg-card/30 text-muted-foreground hover:text-foreground hover:bg-card/50"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Tab Content */}
-          {activeTab === "swap" && (
-            <div className="space-y-8">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
-                  <Coins className="w-8 h-8 text-neon-cyan" />
-                  Swap Interface
-                </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Execute cross-chain swaps with real-time quotes and transaction monitoring.
-                </p>
-              </div>
-              <div className="grid lg:grid-cols-2 gap-8">
-                <SwapInterface />
-                <div className="space-y-6">
-                  <TransactionProgress />
-                  <NetworkSelector />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "contracts" && (
-            <div className="space-y-8">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
-                  <Zap className="w-8 h-8 text-neon-cyan" />
-                  Smart Contract Integration
-                </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Live price feeds, atomic swaps, and real-time contract interactions powered by Chainlink and 1inch.
-                </p>
-              </div>
-              <SmartContractIntegration 
-                walletAddress={mockWalletState.address}
-                isConnected={mockWalletState.isConnected}
-              />
-            </div>
-          )}
-
-          {activeTab === "dashboard" && (
-            <div className="space-y-8">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
-                  <BarChart3 className="w-8 h-8 text-neon-cyan" />
-                  System Dashboard
-                </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Real-time monitoring of all system activities, transactions, and network status.
-                </p>
-              </div>
-              <Dashboard 
-                walletAddress={mockWalletState.address}
-                isConnected={mockWalletState.isConnected}
-              />
-            </div>
-          )}
-
-          {activeTab === "ai" && (
-            <div className="space-y-8">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-4 flex items-center gap-3">
-                  <Bot className="w-8 h-8 text-neon-cyan" />
-                  AI Assistant
-                </h2>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                  Natural language interface for executing swaps and getting market insights.
-                </p>
-              </div>
-              <AIChat />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Main Interface */}
-      <section className="py-12 px-4">
-        <div className="container mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Left Column - Swap Interface */}
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                  ⚡ Manual Swap Interface
-                </h2>
-                <SwapInterface />
-              </div>
-            </div>
-
-            {/* Right Column - Progress & Networks */}
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                  📊 Transaction Status
-                </h2>
-                <TransactionProgress />
-              </div>
-              
-              <div>
-                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                  🌐 Networks
-                </h2>
-                <NetworkSelector />
-              </div>
-            </div>
+          <div className="max-w-4xl mx-auto">
+            {renderContent()}
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-16 px-4 bg-card/30">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Powered by Advanced Tech</h2>
-            <p className="text-muted-foreground">Built on cutting-edge protocols for seamless cross-chain experiences</p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-lg bg-gradient-card border border-neon-cyan/20 text-center card-glow particle-effect animate-float">
-              <div className="mb-4 animate-pulse-glow">
-                <Zap className="w-12 h-12 text-neon-cyan mx-auto" />
+      <section className="py-20 px-4">
+        <div className="container mx-auto">
+          <h2 className="text-4xl font-bold text-center mb-12">Why Choose SwapSage AI?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Zap className="w-8 h-8 text-neon-cyan" />
               </div>
-              <h3 className="font-semibold mb-2">1inch Integration</h3>
-              <p className="text-sm text-muted-foreground">
-                Best swap rates using 1inch Aggregation API and Fusion+ for cross-chain execution
+              <h3 className="text-xl font-semibold mb-2">1inch Integration</h3>
+              <p className="text-muted-foreground">
+                Get the best swap rates using 1inch's aggregation protocol
               </p>
             </div>
-            
-            <div className="p-6 rounded-lg bg-gradient-card border border-neon-purple/20 text-center card-glow particle-effect animate-float" style={{ animationDelay: '2s' }}>
-              <div className="mb-4 animate-pulse-glow">
-                <Shield className="w-12 h-12 text-neon-purple mx-auto" />
+            <div className="text-center">
+              <div className="w-16 h-16 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-neon-cyan" />
               </div>
-              <h3 className="font-semibold mb-2">Atomic Swaps</h3>
-              <p className="text-sm text-muted-foreground">
-                Secure Hash Time Lock Contracts (HTLC) ensure trustless cross-chain transactions
+              <h3 className="text-xl font-semibold mb-2">Atomic Swaps</h3>
+              <p className="text-muted-foreground">
+                Secure cross-chain swaps using Hash Time Lock Contracts
               </p>
             </div>
-            
-            <div className="p-6 rounded-lg bg-gradient-card border border-neon-green/20 text-center card-glow particle-effect animate-float" style={{ animationDelay: '4s' }}>
-              <div className="mb-4 animate-pulse-glow">
-                <Bot className="w-12 h-12 text-neon-green mx-auto" />
+            <div className="text-center">
+              <div className="w-16 h-16 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Bot className="w-8 h-8 text-neon-cyan" />
               </div>
-              <h3 className="font-semibold mb-2">AI-Powered</h3>
-              <p className="text-sm text-muted-foreground">
-                Natural language processing transforms your words into perfect swap instructions
+              <h3 className="text-xl font-semibold mb-2">AI-Powered</h3>
+              <p className="text-muted-foreground">
+                Natural language processing for intuitive DeFi interactions
               </p>
             </div>
           </div>

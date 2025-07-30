@@ -70,7 +70,24 @@ const SwapInterface = () => {
   // Load available tokens on component mount
   useEffect(() => {
     loadAvailableTokens();
-  }, []);
+    
+    // Initialize transaction monitor with provider when wallet is connected
+    if (walletState.isConnected && walletState.provider) {
+      const networkConfig = {
+        chainId: walletState.chainId || 1,
+        name: walletState.network || 'Ethereum',
+        rpcUrl: '',
+        explorerUrl: '',
+        contracts: {
+          htlc: import.meta.env.VITE_HTLC_CONTRACT_ADDRESS || '',
+          oracle: import.meta.env.VITE_ORACLE_CONTRACT_ADDRESS || '',
+          executor: import.meta.env.VITE_EXECUTOR_CONTRACT_ADDRESS || ''
+        }
+      };
+      
+      transactionMonitor.initialize(walletState.provider, networkConfig);
+    }
+  }, [walletState.isConnected, walletState.provider]);
 
   const loadAvailableTokens = async () => {
     try {
@@ -155,27 +172,46 @@ const SwapInterface = () => {
     try {
       setIsLoading(true);
       
-      // For now, we'll simulate the transaction
-      // In a real implementation, you would:
-      // 1. Sign the transaction with the user's wallet
-      // 2. Send it to the blockchain
-      // 3. Monitor the transaction status
-      
-      const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-      
-      // Add to transaction monitor
-      await transactionMonitor.addTransaction(txHash, {
-        fromToken: fromToken.symbol,
-        toToken: toToken.symbol,
-        fromAmount: fromAmount,
-        toAmount: estimatedOutput
-      });
-
-      toast({
-        title: "Swap Initiated",
-        description: `Transaction submitted: ${txHash.slice(0, 8)}...`,
-      });
-
+      // For cross-chain swaps, still use simulation
+      if (fromToken.chain !== toToken.chain) {
+        const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+        
+        await transactionMonitor.addTransaction(txHash, {
+          fromToken: fromToken.symbol,
+          toToken: toToken.symbol,
+          fromAmount: fromAmount,
+          toAmount: estimatedOutput
+        });
+    
+        toast({
+          title: "Cross-Chain Swap Initiated",
+          description: `Transaction submitted: ${txHash.slice(0, 8)}...`,
+        });
+      } else {
+        // For same-chain swaps, use real transaction
+        const txData = swapQuote.tx;
+        
+        // Sign and send transaction
+        const txHash = await walletState.provider.getSigner().sendTransaction({
+          to: txData.to,
+          data: txData.data,
+          value: txData.value,
+          gasLimit: txData.gas
+        });
+        
+        await transactionMonitor.addTransaction(txHash.hash, {
+          fromToken: fromToken.symbol,
+          toToken: toToken.symbol,
+          fromAmount: fromAmount,
+          toAmount: estimatedOutput
+        });
+    
+        toast({
+          title: "Swap Initiated",
+          description: `Transaction submitted: ${txHash.hash.slice(0, 8)}...`,
+        });
+      }
+    
       // Reset form
       setFromAmount("");
       setEstimatedOutput("");

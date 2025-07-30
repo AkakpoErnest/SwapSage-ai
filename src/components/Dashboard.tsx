@@ -89,25 +89,53 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
       const failed = allTransactions.filter(tx => tx.status === 'failed').length;
       const active = pendingTransactions.length;
       
-      // Calculate total volume (mock data for demo)
+      // Calculate total volume from real transactions
       const totalVolume = allTransactions
         .filter(tx => tx.status === 'completed')
         .reduce((sum, tx) => sum + parseFloat(tx.fromAmount || '0'), 0)
         .toFixed(2);
 
-      // Mock network stats
-      const mockStats: SystemStats = {
+      // Get real network data
+      let networkStats: {
+        averageGasPrice: string;
+        networkStatus: 'online' | 'offline' | 'connecting';
+        lastBlockNumber: string;
+      } = {
+        averageGasPrice: "0",
+        networkStatus: 'offline',
+        lastBlockNumber: "0"
+      };
+
+      try {
+        const networkInfo = await transactionMonitor.getNetworkInfo();
+        const gasPrice = await transactionMonitor.estimateGasPrice();
+        
+        networkStats = {
+          averageGasPrice: (parseFloat(gasPrice) / 1e9).toFixed(1), // Convert to Gwei
+          networkStatus: 'online',
+          lastBlockNumber: networkInfo.blockNumber
+        };
+      } catch (error) {
+        console.error('Error getting network stats:', error);
+        networkStats = {
+          averageGasPrice: "25.5",
+          networkStatus: 'offline',
+          lastBlockNumber: "0"
+        };
+      }
+
+      const realStats: SystemStats = {
         totalSwaps: allTransactions.length,
         activeSwaps: active,
         completedSwaps: completed,
         failedSwaps: failed,
         totalVolume: totalVolume,
-        averageGasPrice: "25.5",
-        networkStatus: 'online',
-        lastBlockNumber: "18456789"
+        averageGasPrice: networkStats.averageGasPrice,
+        networkStatus: networkStats.networkStatus,
+        lastBlockNumber: networkStats.lastBlockNumber
       };
 
-      setStats(mockStats);
+      setStats(realStats);
       setRecentTransactions(allTransactions.slice(-5)); // Last 5 transactions
       setLastUpdate(new Date());
       
