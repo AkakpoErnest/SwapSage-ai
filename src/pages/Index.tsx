@@ -54,9 +54,13 @@ const Index = () => {
             Just tell our AI what you want to swap. Natural language commands, intelligent routing, atomic execution.
           </p>
         </div>
-        <div className="max-w-4xl mx-auto grid lg:grid-cols-2 gap-6">
-          <AIChat />
-          <WalletConnect />
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <AIChat />
+          </div>
+          <div>
+            <WalletConnect />
+          </div>
         </div>
       </section>
 

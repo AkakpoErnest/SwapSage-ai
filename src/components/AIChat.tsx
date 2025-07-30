@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Send, Sparkles, Bot, User, CheckCircle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { swapParser, type ParsedSwapCommand } from '@/services/ai/swapParser';
-import { gpt4Service, type GPT4Response } from '@/services/ai/gpt4Service';
+import { huggingFaceService, type HuggingFaceResponse } from '@/services/ai/huggingFaceService';
 
 interface Message {
   id: string;
@@ -15,7 +15,7 @@ interface Message {
   parsedCommand?: ParsedSwapCommand;
   confidence?: number;
   language?: string;
-  gpt4Response?: GPT4Response;
+  aiResponse?: HuggingFaceResponse;
 }
 
 const AIChat = () => {
@@ -23,7 +23,7 @@ const AIChat = () => {
     {
       id: '1',
       type: 'ai',
-      content: `🤖 **Welcome to SwapSage AI Oracle!**\n\nI'm your intelligent DeFi assistant with ${gpt4Service.isAvailable() ? 'GPT-4' : 'advanced'} AI capabilities. I can help you with:\n\n💱 **Swaps**: "Swap 1 ETH to USDC"\n🌉 **Cross-chain**: "Bridge 100 USDC to Stellar"\n📊 **Quotes**: "Get ETH price"\n💰 **Portfolio**: "Show my balances"\n🌍 **Multi-language**: Support for 10+ languages\n\nTry saying something like:\n• "Swap 1 ETH to USDC" (English)\n• "Cambiar 1 ETH por USDC" (Spanish)\n• "Échangez 1 ETH contre USDC" (French)\n• "1 ETHをUSDCに交換" (Japanese)`,
+      content: `🤖 **Welcome to SwapSage AI Oracle!**\n\nI'm your intelligent DeFi assistant. I can help you with:\n\n💱 **Swaps**: "I want to swap 1 ETH to USDC"\n🌉 **Cross-chain**: "Bridge 100 USDC to Stellar"\n📊 **Quotes**: "What's the current price of ETH?"\n💰 **Portfolio**: "Show me my balances"\n\nJust tell me what you want to do in natural language!`,
       timestamp: new Date(),
       language: 'English'
     }
@@ -49,50 +49,51 @@ const AIChat = () => {
     setIsProcessing(true);
 
     try {
-      // First try GPT-4 if available, then fallback to local parser
-      let gpt4Response: GPT4Response | null = null;
+      // First try Hugging Face AI if available, then fallback to local parser
+      let huggingFaceResponse: HuggingFaceResponse | null = null;
       
-      if (gpt4Service.isAvailable()) {
+      if (huggingFaceService.isAvailable()) {
         try {
-          gpt4Response = await gpt4Service.processCommand(userInput);
+          huggingFaceResponse = await huggingFaceService.processCommand(userInput);
         } catch (error) {
-          console.log('GPT-4 failed, falling back to local parser');
+          console.log('Hugging Face AI failed, falling back to local parser');
         }
       }
 
-      // Use GPT-4 response if available and successful
-      if (gpt4Response && gpt4Response.success) {
-        const aiResponse: Message = {
+      // Use AI response if available and successful
+      if (huggingFaceResponse && huggingFaceResponse.success) {
+        const messageResponse: Message = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: gpt4Response.message,
+          content: huggingFaceResponse.message,
           timestamp: new Date(),
-          parsedCommand: gpt4Response.parsedCommand,
-          confidence: gpt4Response.confidence,
-          language: gpt4Response.language,
-          gpt4Response: gpt4Response
+          parsedCommand: huggingFaceResponse.parsedCommand,
+          confidence: huggingFaceResponse.confidence,
+          language: huggingFaceResponse.language,
+          aiResponse: huggingFaceResponse
         };
 
-        setMessages(prev => [...prev, aiResponse]);
+        setMessages(prev => [...prev, messageResponse]);
 
         // Show detailed quote for swap actions
-        if (gpt4Response.parsedCommand?.action === 'swap' && gpt4Response.parsedCommand.estimatedOutput) {
+        if (huggingFaceResponse.parsedCommand?.action === 'swap') {
           setTimeout(() => {
+            const estimatedAmount = parseFloat(huggingFaceResponse.parsedCommand?.fromAmount || '1') * 3200;
             const quoteMessage: Message = {
               id: (Date.now() + 2).toString(),
               type: 'ai',
-              content: `✅ **Route Found!**\n\n💰 **Estimated Output**: ~${gpt4Response.parsedCommand?.estimatedOutput} ${gpt4Response.parsedCommand?.toToken}\n🔄 **Path**: ${gpt4Response.parsedCommand?.route}\n⚡ **Time**: ${gpt4Response.parsedCommand?.timeEstimate}\n💸 **Fees**: ${gpt4Response.parsedCommand?.fees}\n🔒 **Security**: HTLC Atomic Swap\n\n🚀 **Ready to execute?** Connect your wallet to proceed!`,
+              content: `✅ **Route Found!**\n\n💰 **Estimated Output**: ~${estimatedAmount.toFixed(4)} ${huggingFaceResponse.parsedCommand?.toToken}\n🔄 **Path**: Ethereum → 1inch Aggregation → ${huggingFaceResponse.parsedCommand?.toChain || 'Ethereum'}\n⚡ **Time**: 30 seconds\n💸 **Fees**: ~0.3%\n🔒 **Security**: Standard DEX Swap\n\n🚀 **Ready to execute?** Connect your wallet to proceed!`,
               timestamp: new Date(),
-              language: gpt4Response.language
+              language: huggingFaceResponse.language
             };
             setMessages(prev => [...prev, quoteMessage]);
           }, 2000);
         }
 
         toast({
-          title: gpt4Response.confidence >= 60 ? "GPT-4 Processed" : "Need More Info",
-          description: `Confidence: ${gpt4Response.confidence}% - ${gpt4Response.language || 'English'}`,
-          variant: gpt4Response.confidence >= 60 ? "default" : "destructive"
+          title: huggingFaceResponse.confidence >= 60 ? "AI Processed" : "Need More Info",
+          description: `Confidence: ${huggingFaceResponse.confidence}% - ${huggingFaceResponse.language || 'English'}`,
+          variant: huggingFaceResponse.confidence >= 60 ? "default" : "destructive"
         });
         
         return;
@@ -142,12 +143,12 @@ const AIChat = () => {
       }
       
       // Generate intelligent response based on confidence
-      let aiResponse: Message;
+      let fallbackResponse: Message;
       
       if (parsedCommand.confidence < 60) {
         // Low confidence - ask for clarification
         const suggestions = swapParser.generateSuggestions(userInput);
-        aiResponse = {
+        fallbackResponse = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
           content: `I need a bit more information to process your swap. ${suggestions.slice(0, 2).join(' ')} \n\n💡 Try these examples:\n• "Swap 1 ETH to USDC"\n• "Convert 100 USDC to XLM on Stellar"\n• "Bridge 0.5 ETH from Ethereum to Polygon"`,
@@ -159,7 +160,7 @@ const AIChat = () => {
         const isCrossChain = parsedCommand.fromChain !== parsedCommand.toChain;
         const estimatedAmount = parseFloat(parsedCommand.fromAmount) * (parsedCommand.fromToken === 'ETH' ? 3200 : 1);
         
-        aiResponse = {
+        fallbackResponse = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
           content: `🎯 Perfect! I understand you want to swap ${parsedCommand.fromAmount} ${parsedCommand.fromToken}${parsedCommand.fromChain ? ` on ${parsedCommand.fromChain}` : ''} to ${parsedCommand.toToken}${parsedCommand.toChain ? ` on ${parsedCommand.toChain}` : ''}.\n\n🔍 Let me find the best route for you...`,
@@ -182,7 +183,7 @@ const AIChat = () => {
         }
       }
 
-      setMessages(prev => [...prev, aiResponse]);
+      setMessages(prev => [...prev, fallbackResponse]);
       
       toast({
         title: parsedCommand.confidence >= 60 ? "Command Parsed" : "Need More Info",
@@ -280,7 +281,7 @@ const AIChat = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setInput("Swap 1 ETH to USDC")}
+            onClick={() => setInput("I want to swap 1 ETH to USDC")}
             className="text-xs bg-space-gray border-neon-cyan/20 hover:border-neon-cyan/40"
           >
             💱 Swap ETH→USDC
@@ -288,7 +289,7 @@ const AIChat = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setInput("Get ETH price")}
+            onClick={() => setInput("What's the current price of ETH?")}
             className="text-xs bg-space-gray border-neon-purple/20 hover:border-neon-purple/40"
           >
             📊 ETH Price
@@ -304,48 +305,14 @@ const AIChat = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setInput("Help")}
+            onClick={() => setInput("Help me with swaps")}
             className="text-xs bg-space-gray border-border hover:border-neon-cyan/40"
           >
             ❓ Help
           </Button>
         </div>
         
-        {/* Multi-language Quick Actions */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("Cambiar 1 ETH por USDC")}
-            className="text-xs bg-space-gray border-yellow-400/20 hover:border-yellow-400/40"
-          >
-            🇪🇸 Cambiar ETH
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("Échangez 1 ETH contre USDC")}
-            className="text-xs bg-space-gray border-blue-400/20 hover:border-blue-400/40"
-          >
-            🇫🇷 Échanger ETH
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("1 ETHをUSDCに交換")}
-            className="text-xs bg-space-gray border-red-400/20 hover:border-red-400/40"
-          >
-            🇯🇵 ETH交換
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("兑换1个ETH到USDC")}
-            className="text-xs bg-space-gray border-green-400/20 hover:border-green-400/40"
-          >
-            🇨🇳 兑换ETH
-          </Button>
-        </div>
+
       </div>
 
       {/* Input Form */}
@@ -354,7 +321,7 @@ const AIChat = () => {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your swap command in natural language..."
+            placeholder="Tell me what you want to do... (e.g., 'I want to swap 1 ETH to USDC')"
             className="flex-1 bg-space-gray border-neon-cyan/20 focus:border-neon-cyan/40"
             disabled={isProcessing}
           />
