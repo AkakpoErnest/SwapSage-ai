@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useWallet } from "@/hooks/useWallet";
+import { useToast } from "@/hooks/use-toast";
 import { 
   WalletIcon, 
   Settings, 
@@ -11,22 +13,14 @@ import {
   AlertCircle,
   Zap,
   Shield,
-  Globe
+  Globe,
+  ExternalLink
 } from "lucide-react";
 
-interface WalletState {
-  isConnected: boolean;
-  address?: string;
-  chain?: string;
-  balance?: string;
-}
-
 const Header = () => {
-  const [walletState, setWalletState] = useState<WalletState>({
-    isConnected: false
-  });
+  const { walletState, isConnecting, error, isMetaMaskInstalled, isFreighterInstalled, connectEthereum, connectStellar, disconnect } = useWallet();
   const [showWalletSelector, setShowWalletSelector] = useState(false);
-  const [selectedChain, setSelectedChain] = useState("ethereum");
+  const { toast } = useToast();
 
   const chains = [
     {
@@ -34,42 +28,68 @@ const Header = () => {
       name: "Ethereum",
       icon: "🔵",
       wallet: "MetaMask",
-      description: "Smart contracts & DeFi"
+      description: "Smart contracts & DeFi",
+      testnet: "Sepolia",
+      isInstalled: isMetaMaskInstalled(),
+      connect: connectEthereum
     },
     {
       id: "stellar",
       name: "Stellar",
       icon: "⭐",
       wallet: "Freighter",
-      description: "Fast & low-cost transfers"
-    },
-    {
-      id: "polygon",
-      name: "Polygon",
-      icon: "🟣",
-      wallet: "MetaMask",
-      description: "Ethereum scaling solution"
+      description: "Fast & low-cost transfers",
+      testnet: "Testnet",
+      isInstalled: isFreighterInstalled(),
+      connect: connectStellar
     }
   ];
 
-  const handleConnect = async (chainId: string) => {
-    setSelectedChain(chainId);
+  const handleConnect = async (chain: any) => {
     setShowWalletSelector(false);
     
-    // Simulate wallet connection
-    setWalletState({
-      isConnected: true,
-      address: "0x1234...5678",
-      chain: chainId,
-      balance: chainId === "ethereum" ? "2.5 ETH" : chainId === "stellar" ? "1000 XLM" : "500 MATIC"
-    });
+    if (!chain.isInstalled) {
+      // Open wallet download page
+      if (chain.id === "ethereum") {
+        window.open("https://metamask.io/download/", "_blank");
+        toast({
+          title: "MetaMask Required",
+          description: "Please install MetaMask and refresh the page",
+          variant: "destructive"
+        });
+      } else if (chain.id === "stellar") {
+        window.open("https://www.freighter.app/", "_blank");
+        toast({
+          title: "Freighter Required",
+          description: "Please install Freighter and refresh the page",
+          variant: "destructive"
+        });
+      }
+      return;
+    }
+
+    try {
+      await chain.connect();
+      toast({
+        title: "Wallet Connected",
+        description: `Connected to ${chain.name}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Connection Failed",
+        description: err.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDisconnect = () => {
-    setWalletState({ isConnected: false });
+    disconnect();
+    toast({
+      title: "Wallet Disconnected",
+      description: "Successfully disconnected",
+    });
   };
-
-  const getChainInfo = () => chains.find(chain => chain.id === selectedChain);
 
   return (
     <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
@@ -108,8 +128,11 @@ const Header = () => {
           ) : (
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-neon-cyan border-neon-cyan/30">
-                {getChainInfo()?.icon} {getChainInfo()?.name}
+                {walletState.network}
               </Badge>
+              <span className="text-sm text-muted-foreground">
+                {walletState.address?.slice(0, 6)}...{walletState.address?.slice(-4)}
+              </span>
               <Button 
                 variant="outline" 
                 size="sm"
@@ -137,7 +160,7 @@ const Header = () => {
                   {chains.map((chain) => (
                     <div
                       key={chain.id}
-                      onClick={() => handleConnect(chain.id)}
+                      onClick={() => handleConnect(chain)}
                       className="p-3 rounded-lg border border-border hover:border-neon-cyan/40 cursor-pointer transition-all hover:bg-space-gray/50"
                     >
                       <div className="flex items-center justify-between">
@@ -146,14 +169,28 @@ const Header = () => {
                           <div>
                             <h5 className="font-medium text-white">{chain.name}</h5>
                             <p className="text-sm text-muted-foreground">{chain.description}</p>
-                            <Badge variant="outline" className="text-xs mt-1">
-                              {chain.wallet}
-                            </Badge>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Badge variant="outline" className="text-xs">
+                                {chain.wallet}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs text-green-400 border-green-400/30">
+                                {chain.testnet}
+                              </Badge>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Zap className="w-3 h-3" />
-                          Fast
+                        <div className="flex items-center gap-2">
+                          {chain.isInstalled ? (
+                            <div className="flex items-center gap-1 text-xs text-green-400">
+                              <CheckCircle className="w-3 h-3" />
+                              Installed
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-xs text-orange-400">
+                              <ExternalLink className="w-3 h-3" />
+                              Install
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

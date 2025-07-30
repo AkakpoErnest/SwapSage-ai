@@ -1,194 +1,269 @@
-import { useState, useCallback, useEffect } from 'react';
-import { ethereumWallet, type EthereumWallet } from '@/services/wallets/ethereum';
-import { stellarWallet, type StellarWallet } from '@/services/wallets/stellar';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect, useCallback } from 'react';
+import { ethers } from 'ethers';
 
-export interface WalletState {
-  ethereum: EthereumWallet | null;
-  stellar: StellarWallet | null;
-  isConnecting: boolean;
-  error: string | null;
+interface WalletState {
+  isConnected: boolean;
+  address?: string;
+  chainId?: number;
+  balance?: string;
+  network?: string;
+  provider?: any;
+}
+
+interface WalletError {
+  message: string;
+  code?: string;
 }
 
 export const useWallet = () => {
-  const [state, setState] = useState<WalletState>({
-    ethereum: null,
-    stellar: null,
-    isConnecting: false,
-    error: null,
+  const [walletState, setWalletState] = useState<WalletState>({
+    isConnected: false
   });
-  
-  const { toast } = useToast();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState<WalletError | null>(null);
 
+  // Check if MetaMask is installed
+  const isMetaMaskInstalled = () => {
+    return typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask;
+  };
+
+  // Check if Freighter is installed
+  const isFreighterInstalled = () => {
+    return typeof window !== 'undefined' && window.freighter;
+  };
+
+  // Get network name from chain ID
+  const getNetworkName = (chainId: number): string => {
+    switch (chainId) {
+      case 1:
+        return 'Ethereum Mainnet';
+      case 11155111:
+        return 'Sepolia Testnet';
+      case 137:
+        return 'Polygon Mainnet';
+      case 80001:
+        return 'Mumbai Testnet';
+      default:
+        return `Chain ${chainId}`;
+    }
+  };
+
+  // Connect to Ethereum wallet
   const connectEthereum = useCallback(async () => {
-    setState(prev => ({ ...prev, isConnecting: true, error: null }));
-    
-    try {
-      const wallet = await ethereumWallet.connect();
-      setState(prev => ({ 
-        ...prev, 
-        ethereum: wallet, 
-        isConnecting: false 
-      }));
-      
-      toast({
-        title: "Ethereum Wallet Connected",
-        description: `Connected to ${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`,
+    if (!isMetaMaskInstalled()) {
+      setError({
+        message: 'MetaMask is not installed. Please install MetaMask to continue.',
+        code: 'METAMASK_NOT_INSTALLED'
       });
-    } catch (error: unknown) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Unknown error', 
-        isConnecting: false 
-      }));
-      
-      toast({
-        title: "Connection Failed",
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: "destructive",
-      });
+      return;
     }
-  }, [toast]);
 
-  const connectStellar = useCallback(async () => {
-    setState(prev => ({ ...prev, isConnecting: true, error: null }));
-    
+    setIsConnecting(true);
+    setError(null);
+
     try {
-      const wallet = await stellarWallet.connect();
-      setState(prev => ({ 
-        ...prev, 
-        stellar: wallet, 
-        isConnecting: false 
-      }));
-      
-      toast({
-        title: "Stellar Wallet Connected",
-        description: `Connected to ${wallet.publicKey.slice(0, 6)}...${wallet.publicKey.slice(-4)}`,
+      // Request account access
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
       });
-    } catch (error: unknown) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : 'Unknown error', 
-        isConnecting: false 
-      }));
-      
-      toast({
-        title: "Connection Failed",
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
 
-  const disconnectEthereum = useCallback(() => {
-    ethereumWallet.disconnect();
-    setState(prev => ({ ...prev, ethereum: null }));
-    
-    toast({
-      title: "Ethereum Wallet Disconnected",
-      description: "Successfully disconnected from MetaMask",
-    });
-  }, [toast]);
-
-  const disconnectStellar = useCallback(() => {
-    stellarWallet.disconnect();
-    setState(prev => ({ ...prev, stellar: null }));
-    
-    toast({
-      title: "Stellar Wallet Disconnected",
-      description: "Successfully disconnected from Freighter",
-    });
-  }, [toast]);
-
-  const switchEthereumNetwork = useCallback(async (chainId: number) => {
-    try {
-      await ethereumWallet.switchNetwork(chainId);
-      
-      if (state.ethereum) {
-        setState(prev => ({
-          ...prev,
-          ethereum: prev.ethereum ? { ...prev.ethereum, chainId } : null,
-        }));
-      }
-      
-      toast({
-        title: "Network Switched",
-        description: `Switched to chain ID ${chainId}`,
-      });
-    } catch (error: unknown) {
-      toast({
-        title: "Network Switch Failed",
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: "destructive",
-      });
-    }
-  }, [state.ethereum, toast]);
-
-  const switchStellarNetwork = useCallback(async (network: 'MAINNET' | 'TESTNET') => {
-    try {
-      await stellarWallet.switchNetwork(network);
-      
-      if (state.stellar) {
-        setState(prev => ({
-          ...prev,
-          stellar: prev.stellar ? { ...prev.stellar, network } : null,
-        }));
-      }
-      
-      toast({
-        title: "Network Switched",
-        description: `Switched to Stellar ${network}`,
-      });
-    } catch (error: unknown) {
-      toast({
-        title: "Network Switch Failed",
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: "destructive",
-      });
-    }
-  }, [state.stellar, toast]);
-
-  // Set up event listeners
-  useEffect(() => {
-    const handleEthereumAccountChange = (accounts: string[]) => {
       if (accounts.length === 0) {
-        setState(prev => ({ ...prev, ethereum: null }));
-      } else if (state.ethereum) {
-        setState(prev => ({
+        throw new Error('No accounts found');
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const network = await provider.getNetwork();
+      const balance = await provider.getBalance(address);
+
+      setWalletState({
+        isConnected: true,
+        address,
+        chainId: Number(network.chainId),
+        balance: ethers.formatEther(balance),
+        network: getNetworkName(Number(network.chainId)),
+        provider
+      });
+
+    } catch (err: any) {
+      setError({
+        message: err.message || 'Failed to connect to MetaMask',
+        code: err.code
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  // Connect to Stellar wallet
+  const connectStellar = useCallback(async () => {
+    if (!isFreighterInstalled()) {
+      setError({
+        message: 'Freighter is not installed. Please install Freighter to continue.',
+        code: 'FREIGHTER_NOT_INSTALLED'
+      });
+      return;
+    }
+
+    setIsConnecting(true);
+    setError(null);
+
+    try {
+      // Request connection to Freighter
+      const isConnected = await window.freighter.connect();
+      
+      if (!isConnected) {
+        throw new Error('Failed to connect to Freighter');
+      }
+
+      const publicKey = await window.freighter.getPublicKey();
+      const network = await window.freighter.getNetwork();
+
+      setWalletState({
+        isConnected: true,
+        address: publicKey,
+        chainId: network === 'MAINNET' ? 1 : 2,
+        network: network === 'MAINNET' ? 'Stellar Mainnet' : 'Stellar Testnet',
+        provider: window.freighter
+      });
+
+    } catch (err: any) {
+      setError({
+        message: err.message || 'Failed to connect to Freighter',
+        code: err.code
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  // Switch Ethereum network
+  const switchEthereumNetwork = useCallback(async (chainId: number) => {
+    if (!isMetaMaskInstalled()) {
+      setError({
+        message: 'MetaMask is not installed',
+        code: 'METAMASK_NOT_INSTALLED'
+      });
+      return;
+    }
+
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${chainId.toString(16)}` }]
+      });
+
+      // Refresh wallet state after network switch
+      if (walletState.isConnected) {
+        await connectEthereum();
+      }
+    } catch (err: any) {
+      // If chain doesn't exist, add it
+      if (err.code === 4902) {
+        try {
+          const chainConfig = getChainConfig(chainId);
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [chainConfig]
+          });
+          await connectEthereum();
+        } catch (addErr: any) {
+          setError({
+            message: `Failed to add network: ${addErr.message}`,
+            code: addErr.code
+          });
+        }
+      } else {
+        setError({
+          message: `Failed to switch network: ${err.message}`,
+          code: err.code
+        });
+      }
+    }
+  }, [walletState.isConnected, connectEthereum]);
+
+  // Get chain configuration for adding networks
+  const getChainConfig = (chainId: number) => {
+    switch (chainId) {
+      case 11155111: // Sepolia
+        return {
+          chainId: '0xaa36a7',
+          chainName: 'Sepolia Testnet',
+          nativeCurrency: {
+            name: 'Sepolia Ether',
+            symbol: 'SEP',
+            decimals: 18
+          },
+          rpcUrls: ['https://sepolia.infura.io/v3/'],
+          blockExplorerUrls: ['https://sepolia.etherscan.io/']
+        };
+      case 80001: // Mumbai
+        return {
+          chainId: '0x13881',
+          chainName: 'Mumbai Testnet',
+          nativeCurrency: {
+            name: 'MATIC',
+            symbol: 'MATIC',
+            decimals: 18
+          },
+          rpcUrls: ['https://rpc-mumbai.maticvigil.com/'],
+          blockExplorerUrls: ['https://mumbai.polygonscan.com/']
+        };
+      default:
+        throw new Error('Unsupported network');
+    }
+  };
+
+  // Disconnect wallet
+  const disconnect = useCallback(() => {
+    setWalletState({
+      isConnected: false
+    });
+    setError(null);
+  }, []);
+
+  // Listen for account changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+        disconnect();
+      } else if (walletState.isConnected) {
+        setWalletState(prev => ({
           ...prev,
-          ethereum: prev.ethereum ? { ...prev.ethereum, address: accounts[0] } : null,
+          address: accounts[0]
         }));
       }
     };
 
-    const handleEthereumChainChange = (chainId: string) => {
-      if (state.ethereum) {
-        setState(prev => ({
-          ...prev,
-          ethereum: prev.ethereum ? { 
-            ...prev.ethereum, 
-            chainId: parseInt(chainId, 16) 
-          } : null,
-        }));
+    const handleChainChanged = () => {
+      if (walletState.isConnected) {
+        connectEthereum();
       }
     };
 
-    ethereumWallet.onAccountChange(handleEthereumAccountChange);
-    ethereumWallet.onChainChange(handleEthereumChainChange);
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
 
-    return () => {
-      // Cleanup listeners if needed
-    };
-  }, [state.ethereum]);
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+      };
+    }
+  }, [walletState.isConnected, connectEthereum, disconnect]);
 
   return {
-    ...state,
+    walletState,
+    isConnecting,
+    error,
+    isMetaMaskInstalled,
+    isFreighterInstalled,
     connectEthereum,
     connectStellar,
-    disconnectEthereum,
-    disconnectStellar,
     switchEthereumNetwork,
-    switchStellarNetwork,
-    isConnected: !!state.ethereum || !!state.stellar,
+    disconnect
   };
 };
