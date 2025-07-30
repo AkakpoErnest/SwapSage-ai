@@ -94,7 +94,17 @@ const Index = () => {
                 Chat with our AI to execute swaps using natural language. 
                 Support for multiple languages and intelligent routing.
               </p>
-              <AIChat />
+              <div className="bg-card/30 backdrop-blur-sm rounded-lg p-4 border border-neon-cyan/20">
+                <p className="text-center text-muted-foreground mb-4">
+                  Use the AI Assistant tab above to start chatting with our AI
+                </p>
+                <div className="text-center">
+                  <Bot className="w-12 h-12 mx-auto mb-2 text-neon-cyan" />
+                  <p className="text-sm text-muted-foreground">
+                    Try saying: "I want to swap 1 ETH to USDC"
+                  </p>
+                </div>
+              </div>
             </div>
             <div>
               <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
