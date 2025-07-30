@@ -4,7 +4,7 @@ import AIChat from "@/components/AIChat";
 import SwapInterface from "@/components/SwapInterface";
 import TransactionProgress from "@/components/TransactionProgress";
 import NetworkSelector from "@/components/NetworkSelector";
-import WalletConnect from "@/components/WalletConnect";
+
 import SmartContractIntegration from "@/components/SmartContractIntegration";
 import Dashboard from "@/components/Dashboard";
 import heroBackground from "@/assets/hero-background.jpg";
@@ -54,13 +54,8 @@ const Index = () => {
             Just tell our AI what you want to swap. Natural language commands, intelligent routing, atomic execution.
           </p>
         </div>
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <AIChat />
-          </div>
-          <div>
-            <WalletConnect />
-          </div>
+        <div className="max-w-4xl mx-auto">
+          <AIChat />
         </div>
       </section>
 

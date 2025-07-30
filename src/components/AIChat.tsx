@@ -23,7 +23,7 @@ const AIChat = () => {
     {
       id: '1',
       type: 'ai',
-      content: `🤖 **Welcome to SwapSage AI Oracle!**\n\nI'm your intelligent DeFi assistant. I can help you with:\n\n💱 **Swaps**: "I want to swap 1 ETH to USDC"\n🌉 **Cross-chain**: "Bridge 100 USDC to Stellar"\n📊 **Quotes**: "What's the current price of ETH?"\n💰 **Portfolio**: "Show me my balances"\n\nJust tell me what you want to do in natural language!`,
+      content: `🤖 Welcome to SwapSage AI Oracle!\n\nI'm your intelligent DeFi assistant. I can help you with:\n\n💱 Swaps: "I want to swap 1 ETH to USDC"\n🌉 Cross-chain: "Bridge 100 USDC to Stellar"\n📊 Quotes: "What's the current price of ETH?"\n💰 Portfolio: "Show me my balances"\n\nJust tell me what you want to do in natural language!`,
       timestamp: new Date(),
       language: 'English'
     }
@@ -82,7 +82,7 @@ const AIChat = () => {
             const quoteMessage: Message = {
               id: (Date.now() + 2).toString(),
               type: 'ai',
-              content: `✅ **Route Found!**\n\n💰 **Estimated Output**: ~${estimatedAmount.toFixed(4)} ${huggingFaceResponse.parsedCommand?.toToken}\n🔄 **Path**: Ethereum → 1inch Aggregation → ${huggingFaceResponse.parsedCommand?.toChain || 'Ethereum'}\n⚡ **Time**: 30 seconds\n💸 **Fees**: ~0.3%\n🔒 **Security**: Standard DEX Swap\n\n🚀 **Ready to execute?** Connect your wallet to proceed!`,
+              content: `✅ Route Found!\n\n💰 Estimated Output: ~${estimatedAmount.toFixed(4)} ${huggingFaceResponse.parsedCommand?.toToken}\n🔄 Path: Ethereum → 1inch Aggregation → ${huggingFaceResponse.parsedCommand?.toChain || 'Ethereum'}\n⚡ Time: 30 seconds\n💸 Fees: ~0.3%\n🔒 Security: Standard DEX Swap\n\n🚀 Ready to execute? Connect your wallet to proceed!`,
               timestamp: new Date(),
               language: huggingFaceResponse.language
             };
@@ -175,7 +175,7 @@ const AIChat = () => {
             const quoteMessage: Message = {
               id: (Date.now() + 2).toString(),
               type: 'ai',
-              content: `✅ **Route Found!**\n\n💰 **Estimated Output**: ~${estimatedAmount.toFixed(4)} ${parsedCommand.toToken}\n🔄 **Path**: ${parsedCommand.fromChain || 'Ethereum'} → 1inch Aggregation${isCrossChain ? ' → Cross-Chain Bridge' : ''} → ${parsedCommand.toChain || 'Ethereum'}\n⚡ **Time**: ${isCrossChain ? '2-5 minutes' : '30 seconds'}\n💸 **Fees**: ~${isCrossChain ? '2.5%' : '0.3%'}\n🔒 **Security**: ${isCrossChain ? 'HTLC Atomic Swap' : 'Standard DEX Swap'}\n\n🚀 **Ready to execute?** Connect your wallet to proceed!`,
+              content: `✅ Route Found!\n\n💰 Estimated Output: ~${estimatedAmount.toFixed(4)} ${parsedCommand.toToken}\n🔄 Path: ${parsedCommand.fromChain || 'Ethereum'} → 1inch Aggregation${isCrossChain ? ' → Cross-Chain Bridge' : ''} → ${parsedCommand.toChain || 'Ethereum'}\n⚡ Time: ${isCrossChain ? '2-5 minutes' : '30 seconds'}\n💸 Fees: ~${isCrossChain ? '2.5%' : '0.3%'}\n🔒 Security: ${isCrossChain ? 'HTLC Atomic Swap' : 'Standard DEX Swap'}\n\n🚀 Ready to execute? Connect your wallet to proceed!`,
               timestamp: new Date(),
             };
             setMessages(prev => [...prev, quoteMessage]);
@@ -275,45 +275,7 @@ const AIChat = () => {
         )}
       </div>
 
-      {/* Quick Actions */}
-      <div className="px-4 py-2 border-t border-border">
-        <div className="flex flex-wrap gap-2 mb-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("I want to swap 1 ETH to USDC")}
-            className="text-xs bg-space-gray border-neon-cyan/20 hover:border-neon-cyan/40"
-          >
-            💱 Swap ETH→USDC
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("What's the current price of ETH?")}
-            className="text-xs bg-space-gray border-neon-purple/20 hover:border-neon-purple/40"
-          >
-            📊 ETH Price
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("Bridge 100 USDC to Stellar")}
-            className="text-xs bg-space-gray border-neon-green/20 hover:border-neon-green/40"
-          >
-            🌉 Bridge USDC
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInput("Help me with swaps")}
-            className="text-xs bg-space-gray border-border hover:border-neon-cyan/40"
-          >
-            ❓ Help
-          </Button>
-        </div>
-        
 
-      </div>
 
       {/* Input Form */}
       <form onSubmit={handleSubmit} className="p-4 border-t border-border">

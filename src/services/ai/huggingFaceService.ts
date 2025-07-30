@@ -114,7 +114,7 @@ class HuggingFaceService {
   private handlePriceCommand(language: string): HuggingFaceResponse {
     return {
       success: true,
-      message: `Here are the current market prices:\n\n💰 **ETH**: $3,200.50\n💵 **USDC**: $1.00\n🌟 **XLM**: $0.12\n🪙 **BTC**: $43,500.00\n\nThese prices are updated in real-time via Chainlink oracles. Would you like me to help you swap any of these tokens?`,
+      message: `Here are the current market prices:\n\n💰 ETH: $3,200.50\n💵 USDC: $1.00\n🌟 XLM: $0.12\n🪙 BTC: $43,500.00\n\nThese prices are updated in real-time via Chainlink oracles. Would you like me to help you swap any of these tokens?`,
       confidence: 95,
       language,
       model: this.config.model
@@ -124,7 +124,7 @@ class HuggingFaceService {
   private handleGreetingCommand(language: string): HuggingFaceResponse {
     return {
       success: true,
-      message: `Hello! I'm your DeFi assistant. I can help you with:\n\n💱 **Swaps**: "I want to swap 1 ETH to USDC"\n🌉 **Bridges**: "Bridge 100 USDC to Stellar"\n📊 **Quotes**: "What's the current price of ETH?"\n💰 **Portfolio**: "Show me my balances"\n\nJust tell me what you'd like to do in natural language!`,
+      message: `Hello! I'm your DeFi assistant. I can help you with:\n\n💱 Swaps: "I want to swap 1 ETH to USDC"\n🌉 Bridges: "Bridge 100 USDC to Stellar"\n📊 Quotes: "What's the current price of ETH?"\n💰 Portfolio: "Show me my balances"\n\nJust tell me what you'd like to do in natural language!`,
       confidence: 100,
       language,
       model: this.config.model
@@ -134,7 +134,7 @@ class HuggingFaceService {
   private handleHelpCommand(language: string): HuggingFaceResponse {
     return {
       success: true,
-      message: `I'm here to help you with all your DeFi needs! Here's what I can do:\n\n💱 **Swaps**: "I want to swap 1 ETH to USDC"\n🌉 **Bridges**: "Bridge 100 USDC to Stellar"\n📊 **Quotes**: "What's the current price of ETH?"\n💰 **Portfolio**: "Show me my balances"\n\nJust tell me what you want to do in natural language, and I'll help you get it done!`,
+      message: `I'm here to help you with all your DeFi needs! Here's what I can do:\n\n💱 Swaps: "I want to swap 1 ETH to USDC"\n🌉 Bridges: "Bridge 100 USDC to Stellar"\n📊 Quotes: "What's the current price of ETH?"\n💰 Portfolio: "Show me my balances"\n\nJust tell me what you want to do in natural language, and I'll help you get it done!`,
       confidence: 100,
       language,
       model: this.config.model
