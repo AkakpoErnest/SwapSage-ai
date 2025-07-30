@@ -131,10 +131,10 @@ All colors MUST be HSL.
 /* Background Animation Effects */
 @keyframes float {
   0%, 100% {
-    transform: translateY(0px) rotate(0deg);
+    transform: translateY(0px);
   }
   50% {
-    transform: translateY(-20px) rotate(180deg);
+    transform: translateY(-10px);
   }
 }
 
@@ -161,6 +161,11 @@ All colors MUST be HSL.
 
 .animate-float {
   animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-subtle {
+  animation: float 8s ease-in-out infinite;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .animate-pulse-glow {

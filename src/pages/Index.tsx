@@ -31,10 +31,10 @@ const Index = () => {
         <div className="absolute inset-0 bg-deep-space/80 backdrop-blur-sm" />
         <div className="relative container mx-auto text-center">
           <div className="max-w-4xl mx-auto space-y-6">
-            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-primary bg-clip-text text-transparent animate-float">
+            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-primary bg-clip-text text-transparent animate-float-subtle">
               SwapSage AI
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground animate-pulse-glow">
+            <p className="text-xl md:text-2xl text-muted-foreground">
               Ask. Swap. Done.
             </p>
             <p className="text-lg text-foreground/80 max-w-2xl mx-auto">
