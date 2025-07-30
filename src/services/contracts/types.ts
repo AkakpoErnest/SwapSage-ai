@@ -71,7 +71,7 @@ export interface CrossChainSwapRequest extends SwapRequest {
 
 export interface SwapStatus {
   id: string;
-  status: 'pending' | 'executing' | 'completed' | 'failed' | 'refunded';
+  status: 'pending' | 'executing' | 'completed' | 'failed' | 'refunded' | 'confirmed' | 'dropped';
   fromToken: string;
   toToken: string;
   fromAmount: string;
@@ -79,6 +79,9 @@ export interface SwapStatus {
   timestamp: number;
   txHash?: string;
   error?: string;
+  confirmations?: number;
+  gasUsed?: string;
+  effectiveGasPrice?: string;
 }
 
 export interface OraclePrice {
