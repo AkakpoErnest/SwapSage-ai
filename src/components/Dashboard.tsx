@@ -177,8 +177,8 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={stats.networkStatus === 'online' ? 'default' : 'destructive'}>
-            <Network className="w-3 h-3 mr-1" />
+          <Badge variant={stats.networkStatus === 'online' ? 'default' : 'destructive'} className="flex items-center gap-1">
+            <Network className="w-3 h-3" />
             {stats.networkStatus}
           </Badge>
           <Button 
@@ -267,7 +267,7 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
               <Network className="w-5 h-5" />
               Network Status
             </h3>
-            <Badge variant="secondary">Live</Badge>
+            <Badge variant="secondary" className="text-xs">Live</Badge>
           </div>
           
           <div className="space-y-3">
@@ -281,7 +281,7 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Connection</span>
-              <Badge variant={isConnected ? "default" : "destructive"}>
+              <Badge variant={isConnected ? "default" : "destructive"} className="text-xs">
                 {isConnected ? "Connected" : "Disconnected"}
               </Badge>
             </div>
@@ -300,7 +300,7 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
               <Activity className="w-5 h-5" />
               System Health
             </h3>
-            <Badge variant="default">Healthy</Badge>
+            <Badge variant="default" className="text-xs">Healthy</Badge>
           </div>
           
           <div className="space-y-3">
@@ -340,7 +340,7 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
             <Users className="w-5 h-5" />
             Recent Transactions
           </h3>
-          <Badge variant="secondary">{recentTransactions.length} transactions</Badge>
+          <Badge variant="secondary" className="text-xs">{recentTransactions.length} transactions</Badge>
         </div>
         
         <div className="space-y-3">
@@ -359,7 +359,7 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={tx.status === 'completed' ? 'default' : tx.status === 'failed' ? 'destructive' : 'secondary'}>
+                  <Badge variant={tx.status === 'completed' ? 'default' : tx.status === 'failed' ? 'destructive' : 'secondary'} className="text-xs">
                     {tx.status}
                   </Badge>
                   {tx.txHash && (

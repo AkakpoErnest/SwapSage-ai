@@ -1,10 +1,33 @@
 import { ethers } from 'ethers';
-import type { SwapStatus, HTLCSwap, NetworkConfig } from './contracts/types';
+import type { SwapStatus, HTLCSwap, NetworkConfig, SwapExecution } from './contracts/types';
 import { contractService } from './contracts/contractService';
+
+export interface TransactionData {
+  txHash?: string;
+  status?: string;
+  fromToken?: string;
+  toToken?: string;
+  fromAmount?: string;
+  toAmount?: string;
+  error?: string;
+  confirmations?: number;
+  gasUsed?: string;
+  effectiveGasPrice?: string;
+  swapId?: string;
+  initiator?: string;
+  recipient?: string;
+  token?: string;
+  amount?: string;
+  hashlock?: string;
+  timelock?: number;
+  withdrawn?: boolean;
+  refunded?: boolean;
+  secret?: string;
+}
 
 export interface TransactionEvent {
   type: 'swap_initiated' | 'swap_completed' | 'swap_failed' | 'price_update' | 'network_change' | 'htlc_status_update';
-  data: any;
+  data: TransactionData;
   timestamp: number;
 }
 
@@ -134,7 +157,7 @@ class TransactionMonitor {
               // Transaction successful
               transaction.status = 'completed';
               transaction.txHash = txHash;
-              transaction.confirmations = receipt.confirmations;
+              transaction.confirmations = typeof receipt.confirmations === 'function' ? await receipt.confirmations() : (receipt.confirmations || 0);
               transaction.gasUsed = receipt.gasUsed?.toString();
               transaction.effectiveGasPrice = receipt.gasPrice?.toString();
               
@@ -225,7 +248,7 @@ class TransactionMonitor {
     await this.checkHTLCStatus();
   }
 
-  async executeSwapWithContract(swapExecution: any): Promise<string> {
+  async executeSwapWithContract(swapExecution: SwapExecution): Promise<string> {
     if (!this.provider) throw new Error('Provider not initialized');
     
     try {
@@ -234,7 +257,7 @@ class TransactionMonitor {
       
       // Get transaction hash - in ethers v6, we need to wait for the transaction
       const receipt = await tx.wait();
-      const txHash = receipt?.hash || '';
+      const txHash = receipt?.hash || tx.hash || '';
       
       // Add to monitoring
       await this.addTransaction(txHash, {

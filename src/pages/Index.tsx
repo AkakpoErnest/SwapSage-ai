@@ -21,6 +21,8 @@ import AIChat from "@/components/AIChat";
 import Dashboard from "@/components/Dashboard";
 import SmartContractIntegration from "@/components/SmartContractIntegration";
 import TransactionProgress from "@/components/TransactionProgress";
+import BridgeInterface from "@/components/BridgeInterface";
+import TransactionHistory from "@/components/TransactionHistory";
 import Header from "@/components/Header";
 import { useWalletContext } from "@/contexts/WalletContext";
 
@@ -42,17 +44,9 @@ const Index = () => {
       case "swap":
         return <SwapInterface />;
       case "bridge":
-        return (
-          <div className="text-center py-12">
-            <Network className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">Cross-Chain Bridge</h3>
-            <p className="text-muted-foreground">
-              Bridge tokens between Ethereum and Stellar networks
-            </p>
-          </div>
-        );
+        return <BridgeInterface />;
       case "history":
-        return <TransactionProgress />;
+        return <TransactionHistory />;
       case "contracts":
         return <SmartContractIntegration 
           walletAddress={walletState.address}
@@ -79,13 +73,13 @@ const Index = () => {
       {/* Hero Section */}
       <section className="relative py-20 px-4">
         <div className="container mx-auto text-center">
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-float-subtle">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-float-subtle bg-gradient-to-r from-neon-cyan via-neon-purple to-neon-cyan bg-clip-text text-transparent">
             SwapSage AI Oracle
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
             The future of DeFi is here. Ask. Swap. Done.
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="flex flex-wrap justify-center gap-4 mb-8">
             <div className="bg-card/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-neon-cyan/20">
               <span className="text-neon-cyan">⚡ Lightning Fast</span>
             </div>
@@ -96,53 +90,88 @@ const Index = () => {
               <span className="text-neon-cyan">🤖 AI Powered</span>
             </div>
           </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={() => setActiveTab("swap")}
+              className="bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30 px-8 py-3 text-lg"
+            >
+              Start Swapping
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+            <Button 
+              onClick={() => setActiveTab("ai")}
+              variant="outline"
+              className="border-neon-purple/40 text-neon-purple hover:bg-neon-purple/10 px-8 py-3 text-lg"
+            >
+              Try AI Chat
+              <Bot className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* AI Assistant & Wallet Section */}
+      {/* AI Assistant Section */}
       <section className="py-12 px-4">
         <div className="container mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
-              <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-4 flex items-center justify-center gap-2">
                 <Bot className="w-8 h-8 text-neon-cyan" />
                 AI Assistant
               </h2>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
                 Chat with our AI to execute swaps using natural language. 
                 Support for multiple languages and intelligent routing.
               </p>
-              <div className="bg-card/30 backdrop-blur-sm rounded-lg p-4 border border-neon-cyan/20">
-                <p className="text-center text-muted-foreground mb-4">
+            </div>
+            <div className="bg-card/30 backdrop-blur-sm rounded-lg p-6 border border-neon-cyan/20">
+              <div className="text-center">
+                <Bot className="w-16 h-16 mx-auto mb-4 text-neon-cyan" />
+                <h3 className="text-xl font-semibold mb-2">Ready to Chat?</h3>
+                <p className="text-muted-foreground mb-4">
                   Use the AI Assistant tab above to start chatting with our AI
                 </p>
-                <div className="text-center">
-                  <Bot className="w-12 h-12 mx-auto mb-2 text-neon-cyan" />
-                  <p className="text-sm text-muted-foreground">
-                    Try saying: "I want to swap 1 ETH to USDC"
-                  </p>
+                <div className="bg-background/50 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-muted-foreground mb-2">Try saying:</p>
+                  <p className="text-neon-cyan font-medium">"I want to swap 1 ETH to USDC"</p>
                 </div>
+                <Button 
+                  onClick={() => setActiveTab("ai")}
+                  className="bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
+                >
+                  Start AI Chat
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </div>
             </div>
-            <div>
-              <h2 className="text-3xl font-bold mb-4 flex items-center gap-2">
-                <Activity className="w-8 h-8 text-neon-cyan" />
-                Transaction Monitor
-              </h2>
-              <p className="text-muted-foreground mb-6">
-                Track your swap transactions in real-time with detailed progress updates.
-              </p>
-              <div className="bg-card/30 backdrop-blur-sm rounded-lg p-4 border border-neon-cyan/20">
-                <p className="text-center text-muted-foreground mb-4">
-                  Monitor your transactions in the Transaction Progress tab above
-                </p>
-                <div className="text-center">
-                  <Activity className="w-12 h-12 mx-auto mb-2 text-neon-cyan" />
-                  <p className="text-sm text-muted-foreground">
-                    Real-time status updates and confirmations
-                  </p>
-                </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Quick Stats Section */}
+      <section className="py-12 px-4">
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <div className="bg-card/30 backdrop-blur-sm rounded-lg p-6 border border-neon-cyan/20 text-center">
+              <div className="w-12 h-12 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Zap className="w-6 h-6 text-neon-cyan" />
               </div>
+              <h3 className="text-lg font-semibold mb-1">Lightning Fast</h3>
+              <p className="text-sm text-muted-foreground">Sub-second swap execution</p>
+            </div>
+            <div className="bg-card/30 backdrop-blur-sm rounded-lg p-6 border border-neon-cyan/20 text-center">
+              <div className="w-12 h-12 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Shield className="w-6 h-6 text-neon-cyan" />
+              </div>
+              <h3 className="text-lg font-semibold mb-1">Secure HTLC</h3>
+              <p className="text-sm text-muted-foreground">Atomic cross-chain swaps</p>
+            </div>
+            <div className="bg-card/30 backdrop-blur-sm rounded-lg p-6 border border-neon-cyan/20 text-center">
+              <div className="w-12 h-12 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Network className="w-6 h-6 text-neon-cyan" />
+              </div>
+              <h3 className="text-lg font-semibold mb-1">Multi-Chain</h3>
+              <p className="text-sm text-muted-foreground">Ethereum, Polygon, Stellar</p>
             </div>
           </div>
         </div>
@@ -152,21 +181,21 @@ const Index = () => {
       <section className="py-12 px-4">
         <div className="container mx-auto">
           {/* Tab Navigation */}
-          <div className="flex flex-wrap justify-center gap-2 mb-8">
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-300 ${
                     activeTab === tab.id
-                      ? "bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40"
-                      : "bg-card/30 text-muted-foreground hover:text-foreground hover:bg-card/50"
+                      ? "bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 text-neon-cyan border border-neon-cyan/40 shadow-lg shadow-neon-cyan/20"
+                      : "bg-card/30 text-muted-foreground hover:text-foreground hover:bg-card/50 border border-transparent hover:border-neon-cyan/20"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
+                  <Icon className="w-5 h-5" />
+                  <span className="font-medium">{tab.label}</span>
                 </button>
               );
             })}
@@ -182,33 +211,47 @@ const Index = () => {
       {/* Features Section */}
       <section className="py-20 px-4">
         <div className="container mx-auto">
-          <h2 className="text-4xl font-bold text-center mb-12">Why Choose SwapSage AI?</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Zap className="w-8 h-8 text-neon-cyan" />
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">Why Choose SwapSage AI?</h2>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+              Experience the future of DeFi with AI-powered cross-chain swapping
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+            <div className="bg-card/30 backdrop-blur-sm rounded-xl p-6 border border-neon-cyan/20 hover:border-neon-cyan/40 transition-all duration-300 hover:transform hover:scale-105">
+              <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 rounded-xl flex items-center justify-center mb-4">
+                <Zap className="w-7 h-7 text-neon-cyan" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">1inch Integration</h3>
-              <p className="text-muted-foreground">
-                Get the best swap rates using 1inch's aggregation protocol
+              <h3 className="text-lg font-semibold mb-3">1inch Integration</h3>
+              <p className="text-muted-foreground text-sm">
+                Get the best swap rates using 1inch's aggregation protocol across multiple DEXs
               </p>
             </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-8 h-8 text-neon-cyan" />
+            <div className="bg-card/30 backdrop-blur-sm rounded-xl p-6 border border-neon-cyan/20 hover:border-neon-cyan/40 transition-all duration-300 hover:transform hover:scale-105">
+              <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 rounded-xl flex items-center justify-center mb-4">
+                <Shield className="w-7 h-7 text-neon-cyan" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Atomic Swaps</h3>
-              <p className="text-muted-foreground">
-                Secure cross-chain swaps using Hash Time Lock Contracts
+              <h3 className="text-lg font-semibold mb-3">Atomic Swaps</h3>
+              <p className="text-muted-foreground text-sm">
+                Secure cross-chain swaps using Hash Time Lock Contracts with zero counterparty risk
               </p>
             </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-neon-cyan/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Bot className="w-8 h-8 text-neon-cyan" />
+            <div className="bg-card/30 backdrop-blur-sm rounded-xl p-6 border border-neon-cyan/20 hover:border-neon-cyan/40 transition-all duration-300 hover:transform hover:scale-105">
+              <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 rounded-xl flex items-center justify-center mb-4">
+                <Bot className="w-7 h-7 text-neon-cyan" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">AI-Powered</h3>
-              <p className="text-muted-foreground">
-                Natural language processing for intuitive DeFi interactions
+              <h3 className="text-lg font-semibold mb-3">AI-Powered</h3>
+              <p className="text-muted-foreground text-sm">
+                Natural language processing for intuitive DeFi interactions in multiple languages
+              </p>
+            </div>
+            <div className="bg-card/30 backdrop-blur-sm rounded-xl p-6 border border-neon-cyan/20 hover:border-neon-cyan/40 transition-all duration-300 hover:transform hover:scale-105">
+              <div className="w-14 h-14 bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 rounded-xl flex items-center justify-center mb-4">
+                <Network className="w-7 h-7 text-neon-cyan" />
+              </div>
+              <h3 className="text-lg font-semibold mb-3">Multi-Chain</h3>
+              <p className="text-muted-foreground text-sm">
+                Seamlessly swap between Ethereum, Polygon, Arbitrum, and Stellar networks
               </p>
             </div>
           </div>
