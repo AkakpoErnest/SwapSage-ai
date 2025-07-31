@@ -7,31 +7,43 @@ A sophisticated DeFi application that combines AI-powered natural language proce
 ### 🤖 AI-Powered Interface
 - **Natural Language Processing**: Chat with AI to execute swaps using plain English
 - **Multi-language Support**: Works in English, Spanish, French, Japanese, and Chinese
-- **Real Hugging Face Integration**: Enhanced AI responses with fallback to smart local processing
+- **Real Hugging Face Integration**: Enhanced AI responses with smart local fallback
 - **Intelligent Command Parsing**: Automatically extracts swap parameters from natural language
+- **Smart Local Processing**: Works even without API keys using intelligent local parsing
 
 ### 💱 Real-Time Trading
 - **1inch API Integration**: Real-time swap quotes and optimal routing
 - **Cross-Chain Support**: Ethereum and Stellar blockchain integration
 - **Live Price Feeds**: Real-time token prices via Chainlink oracles
 - **Smart Contract Execution**: Direct blockchain interactions for secure swaps
+- **Auto-Quote Calculation**: Automatic quote updates when tokens or amounts change
 
 ### 🔒 Advanced Security
 - **HTLC (Hash Time Lock Contracts)**: Atomic cross-chain swaps
 - **Real Transaction Monitoring**: Live tracking of all blockchain transactions
 - **Smart Contract Integration**: Deployed contracts for secure operations
 - **Wallet Security**: MetaMask and Freighter wallet integration
+- **Global Wallet Context**: Secure state management across all components
 
 ### 📊 Real-Time Monitoring
 - **Transaction Tracking**: Monitor swap status in real-time
 - **HTLC Status Updates**: Track atomic swap progress
 - **Network Status**: Live blockchain network information
 - **Gas Price Estimation**: Real-time gas price monitoring
+- **Balance Auto-Refresh**: Real-time wallet balance updates
+
+### 🎨 Enhanced UI/UX
+- **Animated Background**: Dynamic particle effects and floating orbs
+- **Smooth Animations**: CSS transitions and hover effects
+- **Responsive Design**: Works perfectly on all devices
+- **Dark Theme**: Modern dark interface with neon accents
+- **Intuitive Navigation**: Tabbed interface for easy access to all features
 
 ## 🛠️ Technology Stack
 
 - **Frontend**: React 18, TypeScript, Vite
 - **Styling**: Tailwind CSS, shadcn/ui components
+- **State Management**: React Context API (WalletContext)
 - **Blockchain**: Ethers.js v6, Hardhat, Solidity
 - **AI**: Hugging Face API, Natural Language Processing
 - **APIs**: 1inch Aggregation Protocol, Chainlink Price Feeds
@@ -74,7 +86,7 @@ A sophisticated DeFi application that combines AI-powered natural language proce
    ```
 
 5. **Open your browser**
-   Navigate to `http://localhost:5173`
+   Navigate to `http://localhost:8082`
 
 ## 🔧 Configuration
 
@@ -117,12 +129,16 @@ Simply type your swap request in natural language:
 - "Bridge 100 USDC to Stellar"
 - "What's the current price of ETH?"
 - "Show me my balances"
+- "Hello" - Get a friendly greeting
+- "Help" - See available commands
 
 ### Manual Swap Interface
-1. Connect your wallet (MetaMask or Freighter)
-2. Select source and destination tokens
-3. Enter amount
-4. Review quote and execute swap
+1. **Connect Wallet**: Click "Connect Wallet" in the top-right corner
+2. **Select Network**: Choose Ethereum or Stellar
+3. **Select Tokens**: Choose source and destination tokens
+4. **Enter Amount**: Input the amount you want to swap
+5. **Review Quote**: Check the auto-calculated quote
+6. **Execute Swap**: Click "Execute Swap" to complete the transaction
 
 ### Cross-Chain Swaps
 1. Select tokens from different chains
@@ -136,18 +152,21 @@ Simply type your swap request in natural language:
 - Confirmation tracking
 - Gas price monitoring
 - HTLC swap progress
+- Real-time balance updates
 
 ### Price Feeds
 - Real-time token prices
 - Cross-chain price comparison
 - Oracle integration
 - Market data analysis
+- Auto-refresh on network changes
 
 ### Network Status
 - Blockchain network health
 - Gas price estimation
 - Network congestion monitoring
 - RPC endpoint status
+- Wallet connection status
 
 ## 🧪 Testing
 
@@ -176,10 +195,30 @@ npx hardhat test
 - `npm run compile` - Compile smart contracts
 - `npm run deploy:local` - Deploy to local network
 - `npm run deploy:sepolia` - Deploy to Sepolia testnet
+- `npm run clean` - Clean build artifacts
+- `npm run verify` - Verify contracts on Etherscan
 
 ## 🌐 Live Demo
 
 Visit the live application: [SwapSage AI Oracle](https://swapsage-ai.vercel.app)
+
+## 🎯 Key Improvements
+
+### Latest Updates
+- **WalletContext Implementation**: Global wallet state management
+- **Real API Integration**: All mock data replaced with live 1inch API calls
+- **Enhanced AI Service**: Smart fallback to local processing
+- **Improved UI/UX**: Better animations and responsive design
+- **Debug Information**: Enhanced troubleshooting capabilities
+- **Auto-Quote Calculation**: Real-time quote updates
+- **Balance Integration**: Real wallet balance display
+
+### Technical Enhancements
+- **Ethers.js v6 Compatibility**: Updated to latest version
+- **TypeScript Improvements**: Better type safety and error handling
+- **Component Architecture**: Modular and reusable components
+- **Error Handling**: Comprehensive error management
+- **Performance Optimization**: Efficient state management
 
 ## 🤝 Contributing
 
@@ -206,6 +245,8 @@ This project is licensed under the MIT License.
 - [ ] Mobile app development
 - [ ] Institutional features
 - [ ] Advanced analytics dashboard
+- [ ] Multi-wallet support
+- [ ] Advanced trading features
 
 ---
 
