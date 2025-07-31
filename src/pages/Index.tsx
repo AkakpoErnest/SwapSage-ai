@@ -22,11 +22,11 @@ import Dashboard from "@/components/Dashboard";
 import SmartContractIntegration from "@/components/SmartContractIntegration";
 import TransactionProgress from "@/components/TransactionProgress";
 import Header from "@/components/Header";
-import { useWallet } from "@/hooks/useWallet";
+import { useWalletContext } from "@/contexts/WalletContext";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("swap");
-  const { walletState } = useWallet();
+  const { walletState } = useWalletContext();
 
   const tabs = [
     { id: "swap", label: "Swap", icon: Coins },

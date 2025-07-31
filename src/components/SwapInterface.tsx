@@ -8,7 +8,7 @@ import { ArrowDownUp, Settings, Info, AlertCircle, CheckCircle, Loader2, Trendin
 import { useToast } from "@/hooks/use-toast";
 import { transactionMonitor } from "@/services/transactionMonitor";
 import { oneInchAPI, type SwapQuote } from "@/services/api/oneinch";
-import { useWallet } from "@/hooks/useWallet";
+import { useWalletContext } from "@/contexts/WalletContext";
 
 interface Token {
   symbol: string;
@@ -65,7 +65,7 @@ const SwapInterface = () => {
   const [slippage, setSlippage] = useState(0.5);
   const [availableTokens, setAvailableTokens] = useState<Record<string, any>>({});
   const { toast } = useToast();
-  const { walletState, refreshBalance } = useWallet();
+  const { walletState, refreshBalance } = useWalletContext();
 
   // Load available tokens on component mount
   useEffect(() => {

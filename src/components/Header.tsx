@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useWallet } from "@/hooks/useWallet";
+import { useWalletContext } from "@/contexts/WalletContext";
 import { useToast } from "@/hooks/use-toast";
 import { 
   WalletIcon, 
@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 const Header = () => {
-  const { walletState, isConnecting, error, isMetaMaskInstalled, isFreighterInstalled, connectEthereum, connectStellar, disconnect } = useWallet();
+  const { walletState, isConnecting, error, isMetaMaskInstalled, isFreighterInstalled, connectEthereum, connectStellar, disconnect } = useWalletContext();
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const { toast } = useToast();
