@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import { oneInchAPI } from '../api/oneinch';
-import { SwapSageHTLC__factory } from '../../../contracts/typechain-types';
 
 export interface CrossChainSwapRequest {
   fromChain: 'ethereum' | 'stellar';
@@ -57,10 +56,17 @@ class CrossChainBridge {
     if (typeof window !== 'undefined' && window.ethereum) {
       this.ethereumProvider = new ethers.BrowserProvider(window.ethereum);
       
-      // Initialize HTLC contract
+      // Initialize HTLC contract (simplified for now)
       const htlcAddress = import.meta.env.VITE_HTLC_CONTRACT_ADDRESS;
       if (htlcAddress) {
-        this.htlcContract = SwapSageHTLC__factory.connect(htlcAddress, this.ethereumProvider);
+        // Basic contract interface for HTLC functions
+        const htlcABI = [
+          'function initiateSwap(address recipient, address token, uint256 amount, bytes32 hashlock, uint256 timelock) external payable',
+          'function withdraw(bytes32 swapId, string secret) external',
+          'function refund(bytes32 swapId) external',
+          'function getSwap(bytes32 swapId) external view returns (address, address, address, uint256, bytes32, uint256, bool, bool, string)'
+        ];
+        this.htlcContract = new ethers.Contract(htlcAddress, htlcABI, this.ethereumProvider);
       }
     }
   }
