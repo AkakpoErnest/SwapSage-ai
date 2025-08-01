@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from './ui/button';
-import { useWalletContext } from '../contexts/WalletContext';
+import { useWalletContext } from '@/contexts/WalletContext';
 import { Coins, Network, Activity, ChevronDown, ExternalLink } from 'lucide-react';
 import {
   DropdownMenu,
@@ -11,12 +11,23 @@ import {
 
 const Header: React.FC = () => {
   const { walletState, connectEthereum, connectStellar, disconnect } = useWalletContext();
+  
+  console.log('Header wallet state:', walletState);
 
   const handleNetworkSelect = async (network: 'ethereum' | 'stellar') => {
-    if (network === 'ethereum') {
-      await connectEthereum();
-    } else if (network === 'stellar') {
-      await connectStellar();
+    console.log('Network selected:', network);
+    try {
+      if (network === 'ethereum') {
+        console.log('Attempting to connect Ethereum...');
+        await connectEthereum();
+        console.log('Ethereum connection completed');
+      } else if (network === 'stellar') {
+        console.log('Attempting to connect Stellar...');
+        await connectStellar();
+        console.log('Stellar connection completed');
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
     }
   };
 
@@ -118,50 +129,20 @@ const Header: React.FC = () => {
         {/* Wallet Connection */}
         <div className="flex items-center space-x-4">
           {!walletState.isConnected ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg">
-                  Connect Wallet
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => handleNetworkSelect('ethereum')}>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
-                      <span>Ethereum</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {getWalletStatus('MetaMask')}
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleNetworkSelect('stellar')}>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-purple-500 rounded-full"></div>
-                      <span>Stellar</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {getWalletStatus('Freighter')}
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleWalletInstall('MetaMask')}>
-                  <div className="flex items-center justify-between w-full">
-                    <span>Install MetaMask</span>
-                    <ExternalLink className="h-4 w-4" />
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleWalletInstall('Freighter')}>
-                  <div className="flex items-center justify-between w-full">
-                    <span>Install Freighter</span>
-                    <ExternalLink className="h-4 w-4" />
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => handleNetworkSelect('ethereum')}
+                className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
+              >
+                Connect MetaMask
+              </Button>
+              <Button 
+                onClick={() => handleNetworkSelect('stellar')}
+                className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
+              >
+                Connect Freighter
+              </Button>
+            </div>
           ) : (
             <div className="flex items-center space-x-3">
               <div className="text-sm">
