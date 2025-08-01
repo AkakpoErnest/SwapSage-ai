@@ -10,63 +10,13 @@ import {
 } from './ui/dropdown-menu';
 
 const Header: React.FC = () => {
-  const { walletState, connectEthereum, connectStellar, disconnect, isConnecting } = useWalletContext();
+  const { walletState, connectEthereum, connectStellar, switchToTestnet, disconnect, isConnecting } = useWalletContext();
   const [isConnectingMetaMask, setIsConnectingMetaMask] = useState(false);
   const [isConnectingFreighter, setIsConnectingFreighter] = useState(false);
   
   console.log('Header wallet state:', walletState);
 
-  const handleNetworkSelect = async (network: 'ethereum' | 'stellar') => {
-    console.log('Network selected:', network);
-    
-    if (network === 'ethereum') {
-      setIsConnectingMetaMask(true);
-      
-      try {
-        // Check if MetaMask is installed first
-        if (!window.ethereum) {
-          alert('MetaMask is not installed! Please install MetaMask to continue.');
-          window.open('https://metamask.io/download/', '_blank');
-          return;
-        }
-        
-        if (!window.ethereum.isMetaMask) {
-          alert('Please use MetaMask wallet to connect to Ethereum.');
-          return;
-        }
-        
-        console.log('Attempting to connect Ethereum...');
-        await connectEthereum();
-        console.log('Ethereum connection completed');
-      } catch (error) {
-        console.error('Connection error:', error);
-        alert('Failed to connect to MetaMask. Please try again.');
-      } finally {
-        setIsConnectingMetaMask(false);
-      }
-    } else if (network === 'stellar') {
-      setIsConnectingFreighter(true);
-      
-      try {
-        // Check if Freighter is installed first
-        if (!window.freighter) {
-          alert('Freighter is not installed! Please install Freighter to continue.');
-          window.open('https://www.freighter.app/', '_blank');
-          return;
-        }
-        
-        console.log('Attempting to connect Stellar...');
-        await connectStellar();
-        console.log('Stellar connection completed');
-      } catch (error) {
-        console.error('Connection error:', error);
-        alert('Failed to connect to Freighter. Please try again.');
-      } finally {
-        setIsConnectingFreighter(false);
-      }
-    }
-  };
-
+  // Check wallet installation status
   const getWalletStatus = (walletName: string) => {
     if (walletName === 'MetaMask') {
       return typeof window !== 'undefined' && window.ethereum ? 'Installed' : 'Install';
@@ -82,6 +32,70 @@ const Header: React.FC = () => {
     } else if (walletName === 'Freighter') {
       window.open('https://www.freighter.app/', '_blank');
     }
+  };
+
+  const handleNetworkSelect = async (network: 'ethereum' | 'stellar') => {
+    console.log('Network selected:', network);
+    
+    if (network === 'ethereum') {
+      setIsConnectingMetaMask(true);
+      
+      try {
+        console.log('Attempting to connect Ethereum...');
+        await connectEthereum();
+        console.log('Ethereum connection completed');
+      } catch (error: any) {
+        console.error('Connection error:', error);
+        if (error.message?.includes('MetaMask is not installed')) {
+          alert('MetaMask is not installed! Please install MetaMask to continue.');
+          window.open('https://metamask.io/download/', '_blank');
+        } else {
+          alert('Failed to connect to MetaMask. Please try again.');
+        }
+      } finally {
+        setIsConnectingMetaMask(false);
+      }
+    } else if (network === 'stellar') {
+      setIsConnectingFreighter(true);
+      
+      try {
+        console.log('Attempting to connect Stellar...');
+        await connectStellar();
+        console.log('Stellar connection completed');
+      } catch (error: any) {
+        console.error('Connection error:', error);
+        if (error.message?.includes('Freighter is not installed')) {
+          alert('Freighter is not installed! Please install Freighter to continue.');
+          window.open('https://www.freighter.app/', '_blank');
+        } else {
+          alert('Failed to connect to Freighter. Please try again.');
+        }
+      } finally {
+        setIsConnectingFreighter(false);
+      }
+    }
+  };
+
+  // Check if current network is a testnet
+  const isTestnet = (chainId?: number): boolean => {
+    return chainId === 11155111 || chainId === 80001; // Sepolia or Mumbai
+  };
+
+  // Get the correct network display name
+  const getNetworkDisplayName = () => {
+    if (!walletState.network) return 'Unknown';
+    
+    // Check if it's an Ethereum network
+    if (walletState.network.includes('Ethereum') || walletState.network.includes('Sepolia') || walletState.network.includes('Polygon') || walletState.network.includes('Mumbai')) {
+      return walletState.network;
+    }
+    
+    // Check if it's a Stellar network
+    if (walletState.network.includes('Stellar')) {
+      return walletState.network;
+    }
+    
+    return walletState.network;
   };
 
   return (
@@ -165,49 +179,134 @@ const Header: React.FC = () => {
         {/* Wallet Connection */}
         <div className="flex items-center space-x-4">
           {!walletState.isConnected ? (
-            <div className="flex space-x-2">
-              <Button 
-                onClick={() => handleNetworkSelect('ethereum')}
-                disabled={isConnectingMetaMask || isConnectingFreighter}
-                className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
-              >
-                {isConnectingMetaMask ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  'Connect MetaMask'
-                )}
-              </Button>
-              <Button 
-                onClick={() => handleNetworkSelect('stellar')}
-                disabled={isConnectingMetaMask || isConnectingFreighter}
-                className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
-              >
-                {isConnectingFreighter ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  'Connect Freighter'
-                )}
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  disabled={isConnectingMetaMask || isConnectingFreighter}
+                  className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
+                >
+                  {isConnectingMetaMask || isConnectingFreighter ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Coins className="mr-2 h-4 w-4" />
+                      Connect Wallet
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem 
+                  onClick={() => handleNetworkSelect('ethereum')}
+                  disabled={isConnectingMetaMask || isConnectingFreighter}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">M</span>
+                    </div>
+                    <span>MetaMask</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      getWalletStatus('MetaMask') === 'Installed' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {getWalletStatus('MetaMask')}
+                    </span>
+                    {getWalletStatus('MetaMask') === 'Install' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleWalletInstall('MetaMask');
+                        }}
+                        className="h-6 w-6 p-0"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleNetworkSelect('stellar')}
+                  disabled={isConnectingMetaMask || isConnectingFreighter}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">F</span>
+                    </div>
+                    <span>Freighter</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      getWalletStatus('Freighter') === 'Installed' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {getWalletStatus('Freighter')}
+                    </span>
+                    {getWalletStatus('Freighter') === 'Install' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleWalletInstall('Freighter');
+                        }}
+                        className="h-6 w-6 p-0"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <div className="flex items-center space-x-3">
               <div className="text-sm">
-                <span className="text-muted-foreground">
-                  {walletState.network === 'ethereum' ? 'Ethereum' : 'Stellar'}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-muted-foreground">
+                    {getNetworkDisplayName()}
+                  </span>
+                  {!isTestnet(walletState.chainId) && walletState.network?.includes('Ethereum') && (
+                    <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                      Switch to Testnet
+                    </span>
+                  )}
+                </div>
                 <div className="font-mono text-xs">
                   {walletState.address?.slice(0, 6)}...{walletState.address?.slice(-4)}
                 </div>
+                {!isTestnet(walletState.chainId) && walletState.network?.includes('Ethereum') && (
+                  <div className="text-xs text-yellow-600 mt-1">
+                    ⚠️ This app requires testnet for demo
+                  </div>
+                )}
               </div>
-              <Button variant="outline" size="sm" onClick={disconnect}>
-                Disconnect
-              </Button>
+              <div className="flex space-x-2">
+                {!isTestnet(walletState.chainId) && walletState.network?.includes('Ethereum') && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={switchToTestnet}
+                    className="text-xs bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100"
+                  >
+                    Switch to Sepolia
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={disconnect}>
+                  Disconnect
+                </Button>
+              </div>
             </div>
           )}
         </div>

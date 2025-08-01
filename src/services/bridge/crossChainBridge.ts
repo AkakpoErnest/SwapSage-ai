@@ -45,7 +45,6 @@ export interface StellarAccount {
 class CrossChainBridge {
   private ethereumProvider?: ethers.BrowserProvider;
   private stellarServer: string = 'https://horizon-testnet.stellar.org'; // Testnet for now
-  private htlcContract?: ethers.Contract;
   private swaps: Map<string, SwapStatus> = new Map();
 
   constructor() {
@@ -55,29 +54,16 @@ class CrossChainBridge {
   private async initializeProviders() {
     if (typeof window !== 'undefined' && window.ethereum) {
       this.ethereumProvider = new ethers.BrowserProvider(window.ethereum);
-      
-      // Initialize HTLC contract (simplified for now)
-      const htlcAddress = import.meta.env.VITE_HTLC_CONTRACT_ADDRESS;
-      if (htlcAddress) {
-        // Basic contract interface for HTLC functions
-        const htlcABI = [
-          'function initiateSwap(address recipient, address token, uint256 amount, bytes32 hashlock, uint256 timelock) external payable',
-          'function withdraw(bytes32 swapId, string secret) external',
-          'function refund(bytes32 swapId) external',
-          'function getSwap(bytes32 swapId) external view returns (address, address, address, uint256, bytes32, uint256, bool, bool, string)'
-        ];
-        this.htlcContract = new ethers.Contract(htlcAddress, htlcABI, this.ethereumProvider);
-      }
     }
   }
 
   /**
-   * Initiate a cross-chain swap from Ethereum to Stellar
+   * Initiate a cross-chain swap from Ethereum to Stellar (Demo Version)
    */
   async initiateEthereumToStellarSwap(request: CrossChainSwapRequest): Promise<SwapStatus> {
     try {
-      if (!this.ethereumProvider || !this.htlcContract) {
-        throw new Error('Ethereum provider or HTLC contract not initialized');
+      if (!this.ethereumProvider) {
+        throw new Error('Ethereum provider not initialized');
       }
 
       // Generate secret and hashlock for atomic swap
@@ -87,62 +73,20 @@ class CrossChainBridge {
       // Calculate timelock (1 hour from now)
       const timelock = Math.floor(Date.now() / 1000) + 3600;
 
-      // Create swap ID
+      // Create swap ID - convert amount to BigInt to avoid decimal issues
+      const amountBigInt = ethers.parseEther(request.amount);
       const swapId = ethers.keccak256(
         ethers.AbiCoder.defaultAbiCoder().encode(
           ['address', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
-          [request.fromAddress, request.toAddress, request.fromToken, request.amount, hashlock, timelock]
+          [request.fromAddress, request.toAddress, request.fromToken, amountBigInt, hashlock, timelock]
         )
       );
 
       // Get signer
       const signer = await this.ethereumProvider.getSigner();
 
-      // First, swap tokens on Ethereum using 1inch if needed
-      let ethereumTxHash: string | undefined;
-      let finalTokenAddress = request.fromToken;
-
-      if (request.fromToken !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
-        // Need to swap to ETH first
-        const swapQuote = await oneInchAPI.getSwapQuote(
-          1, // Ethereum mainnet
-          request.fromToken,
-          '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // ETH
-          request.amount,
-          request.fromAddress,
-          request.slippage || 1
-        );
-
-        // Execute the swap
-        const swapTx = await signer.sendTransaction({
-          to: swapQuote.tx.to,
-          data: swapQuote.tx.data,
-          value: swapQuote.tx.value,
-          gasLimit: swapQuote.estimatedGas,
-        });
-
-        const swapReceipt = await swapTx.wait();
-        ethereumTxHash = swapReceipt?.hash;
-        
-        // Update amount to received ETH amount
-        request.amount = swapQuote.toTokenAmount;
-        finalTokenAddress = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
-      }
-
-      // Now initiate HTLC on Ethereum
-      const htlcTx = await this.htlcContract!.initiateSwap(
-        request.toAddress, // This will be our bridge address
-        finalTokenAddress,
-        request.amount,
-        hashlock,
-        timelock,
-        { value: finalTokenAddress === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' ? request.amount : 0 }
-      );
-
-      const htlcReceipt = await htlcTx.wait();
-      const htlcTxHash = htlcReceipt?.hash;
-
-      // Create swap status
+      // For demo purposes, we'll simulate the swap process
+      // In a real implementation, this would interact with the HTLC contract
       const swapStatus: SwapStatus = {
         id: swapId,
         status: 'initiated',
@@ -156,47 +100,49 @@ class CrossChainBridge {
         hashlock,
         secret,
         timelock,
-        ethereumTxHash: htlcTxHash,
+        ethereumTxHash: `0x${Math.random().toString(16).substring(2, 66)}`, // Simulated tx hash
         createdAt: Date.now(),
       };
 
+      // Store the swap
       this.swaps.set(swapId, swapStatus);
 
-      // Start monitoring for completion
-      this.monitorSwapCompletion(swapId);
+      // Simulate the Stellar side of the swap
+      setTimeout(() => {
+        this.simulateStellarSwap(swapId);
+      }, 2000);
 
+      console.log('🎯 Ethereum to Stellar swap initiated (Demo):', swapStatus);
       return swapStatus;
+
     } catch (error) {
-      console.error('Error initiating Ethereum to Stellar swap:', error);
-      throw new Error(`Failed to initiate swap: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Error initiating Ethereum to Stellar swap:', error);
+      throw error;
     }
   }
 
   /**
-   * Initiate a cross-chain swap from Stellar to Ethereum
+   * Initiate a cross-chain swap from Stellar to Ethereum (Demo Version)
    */
   async initiateStellarToEthereumSwap(request: CrossChainSwapRequest): Promise<SwapStatus> {
     try {
-      // Generate secret and hashlock
+      // Generate secret and hashlock for atomic swap
       const secret = this.generateSecret();
       const hashlock = ethers.keccak256(ethers.toUtf8Bytes(secret));
       
+      // Calculate timelock (1 hour from now)
       const timelock = Math.floor(Date.now() / 1000) + 3600;
 
-      // Create swap ID
+      // Create swap ID - convert amount to BigInt to avoid decimal issues
+      const amountBigInt = ethers.parseEther(request.amount);
       const swapId = ethers.keccak256(
         ethers.AbiCoder.defaultAbiCoder().encode(
-          ['address', 'address', 'address', 'uint256', 'bytes32', 'uint256'],
-          [request.fromAddress, request.toAddress, request.toToken, request.amount, hashlock, timelock]
+          ['string', 'string', 'string', 'uint256', 'bytes32', 'uint256'],
+          [request.fromAddress, request.toAddress, request.fromToken, amountBigInt, hashlock, timelock]
         )
       );
 
-      // For Stellar to Ethereum, we need to:
-      // 1. Create a Stellar account for the user if they don't have one
-      // 2. Send XLM to our bridge account
-      // 3. Set up the HTLC on Ethereum side
-      // 4. Monitor for completion
-
+      // For demo purposes, simulate the swap
       const swapStatus: SwapStatus = {
         id: swapId,
         status: 'initiated',
@@ -210,193 +156,104 @@ class CrossChainBridge {
         hashlock,
         secret,
         timelock,
+        stellarTxHash: `${Math.random().toString(16).substring(2, 66)}`, // Simulated tx hash
         createdAt: Date.now(),
       };
 
+      // Store the swap
       this.swaps.set(swapId, swapStatus);
 
-      // Start the Stellar side of the swap
-      await this.initiateStellarSide(swapStatus);
+      // Simulate the Ethereum side of the swap
+      setTimeout(() => {
+        this.simulateEthereumSwap(swapId);
+      }, 2000);
 
+      console.log('🎯 Stellar to Ethereum swap initiated (Demo):', swapStatus);
       return swapStatus;
+
     } catch (error) {
-      console.error('Error initiating Stellar to Ethereum swap:', error);
-      throw new Error(`Failed to initiate swap: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Error initiating Stellar to Ethereum swap:', error);
+      throw error;
     }
   }
 
   /**
-   * Handle the Stellar side of a cross-chain swap
+   * Simulate Stellar swap completion (Demo)
    */
-  private async initiateStellarSide(swapStatus: SwapStatus): Promise<void> {
-    try {
-      // This would integrate with Stellar's HTLC implementation
-      // For now, we'll simulate the process
-      
-      // 1. Create or verify Stellar account
-      const stellarAccount = await this.getOrCreateStellarAccount(swapStatus.fromAddress);
-      
-      // 2. Send XLM to bridge account (this would be done through Stellar's HTLC)
-      // In a real implementation, this would use Stellar's built-in HTLC features
-      
-      // 3. Set up monitoring for the Stellar transaction
-      this.monitorStellarTransaction(swapStatus.id);
-      
-    } catch (error) {
-      console.error('Error initiating Stellar side:', error);
-      swapStatus.status = 'failed';
-      swapStatus.error = error instanceof Error ? error.message : 'Unknown error';
-    }
-  }
+  private async simulateStellarSwap(swapId: string) {
+    const swap = this.swaps.get(swapId);
+    if (!swap) return;
 
-  /**
-   * Complete a swap by revealing the secret
-   */
-  async completeSwap(swapId: string, secret: string): Promise<SwapStatus> {
-    try {
-      const swap = this.swaps.get(swapId);
-      if (!swap) {
-        throw new Error('Swap not found');
-      }
-
-      if (swap.status !== 'initiated') {
-        throw new Error('Swap cannot be completed in current state');
-      }
-
-      // Verify the secret matches the hashlock
-      const hashlock = ethers.keccak256(ethers.toUtf8Bytes(secret));
-      if (hashlock !== swap.hashlock) {
-        throw new Error('Invalid secret');
-      }
-
-      // Complete the swap on the destination chain
-      if (swap.toChain === 'stellar') {
-        await this.completeStellarSwap(swap, secret);
-      } else if (swap.toChain === 'ethereum') {
-        await this.completeEthereumSwap(swap, secret);
-      }
-
+    // Update status to confirmed
+    swap.status = 'confirmed';
+    swap.stellarTxHash = `${Math.random().toString(16).substring(2, 66)}`;
+    
+    // Simulate completion after 3 seconds
+    setTimeout(() => {
       swap.status = 'completed';
       swap.completedAt = Date.now();
-      swap.secret = secret;
-
-      return swap;
-    } catch (error) {
-      console.error('Error completing swap:', error);
-      throw new Error(`Failed to complete swap: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+      swap.receivedAmount = swap.amount; // For demo, 1:1 ratio
+      console.log('✅ Stellar swap completed (Demo):', swap);
+    }, 3000);
   }
 
   /**
-   * Complete a swap on the Stellar side
+   * Simulate Ethereum swap completion (Demo)
    */
-  private async completeStellarSwap(swap: SwapStatus, secret: string): Promise<void> {
-    try {
-      // In a real implementation, this would:
-      // 1. Use the secret to claim XLM from Stellar's HTLC
-      // 2. Convert XLM to the desired token if needed
-      // 3. Send the final amount to the recipient
+  private async simulateEthereumSwap(swapId: string) {
+    const swap = this.swaps.get(swapId);
+    if (!swap) return;
 
-      // For now, we'll simulate the process
-      const recipientAccount = await this.getOrCreateStellarAccount(swap.toAddress);
-      
-      // Calculate the amount to send (considering fees and exchange rates)
-      const exchangeRate = await this.getStellarExchangeRate(swap.toToken);
-      const finalAmount = (parseFloat(swap.amount) * exchangeRate).toString();
-
-      // Send the tokens to the recipient
-      await this.sendStellarPayment(swap.toAddress, swap.toToken, finalAmount);
-
-      swap.receivedAmount = finalAmount;
-      swap.stellarTxHash = `stellar_tx_${Date.now()}`; // Simulated transaction hash
-
-    } catch (error) {
-      console.error('Error completing Stellar swap:', error);
-      throw error;
-    }
+    // Update status to confirmed
+    swap.status = 'confirmed';
+    swap.ethereumTxHash = `0x${Math.random().toString(16).substring(2, 66)}`;
+    
+    // Simulate completion after 3 seconds
+    setTimeout(() => {
+      swap.status = 'completed';
+      swap.completedAt = Date.now();
+      swap.receivedAmount = swap.amount; // For demo, 1:1 ratio
+      console.log('✅ Ethereum swap completed (Demo):', swap);
+    }, 3000);
   }
 
   /**
-   * Complete a swap on the Ethereum side
+   * Complete a swap using the secret (Demo Version)
    */
-  private async completeEthereumSwap(swap: SwapStatus, secret: string): Promise<void> {
-    try {
-      if (!this.htlcContract || !this.ethereumProvider) {
-        throw new Error('Ethereum provider not initialized');
-      }
-
-      const signer = await this.ethereumProvider.getSigner();
-
-      // Withdraw from HTLC using the secret
-      const withdrawTx = await this.htlcContract.withdraw(swap.id, secret);
-      const withdrawReceipt = await withdrawTx.wait();
-
-      swap.ethereumTxHash = withdrawReceipt?.hash;
-
-      // If the destination token is different from ETH, swap it
-      if (swap.toToken !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
-        const swapQuote = await oneInchAPI.getSwapQuote(
-          1, // Ethereum mainnet
-          '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // ETH
-          swap.toToken,
-          swap.amount,
-          swap.toAddress,
-          swap.slippage || 1
-        );
-
-        const swapTx = await signer.sendTransaction({
-          to: swapQuote.tx.to,
-          data: swapQuote.tx.data,
-          value: swapQuote.tx.value,
-          gasLimit: swapQuote.estimatedGas,
-        });
-
-        const swapReceipt = await swapTx.wait();
-        swap.ethereumTxHash = swapReceipt?.hash;
-        swap.receivedAmount = swapQuote.toTokenAmount;
-      } else {
-        swap.receivedAmount = swap.amount;
-      }
-
-    } catch (error) {
-      console.error('Error completing Ethereum swap:', error);
-      throw error;
+  async completeSwap(swapId: string, secret: string): Promise<SwapStatus> {
+    const swap = this.swaps.get(swapId);
+    if (!swap) {
+      throw new Error('Swap not found');
     }
+
+    if (swap.secret !== secret) {
+      throw new Error('Invalid secret');
+    }
+
+    // For demo, immediately complete the swap
+    swap.status = 'completed';
+    swap.completedAt = Date.now();
+    swap.receivedAmount = swap.amount;
+
+    console.log('✅ Swap completed (Demo):', swap);
+    return swap;
   }
 
   /**
-   * Refund a swap if the timelock expires
+   * Refund a swap (Demo Version)
    */
   async refundSwap(swapId: string): Promise<SwapStatus> {
-    try {
-      const swap = this.swaps.get(swapId);
-      if (!swap) {
-        throw new Error('Swap not found');
-      }
-
-      if (swap.status !== 'initiated') {
-        throw new Error('Swap cannot be refunded in current state');
-      }
-
-      if (Date.now() / 1000 < swap.timelock) {
-        throw new Error('Timelock not expired yet');
-      }
-
-      // Refund on the source chain
-      if (swap.fromChain === 'ethereum') {
-        await this.refundEthereumSwap(swap);
-      } else if (swap.fromChain === 'stellar') {
-        await this.refundStellarSwap(swap);
-      }
-
-      swap.status = 'refunded';
-      swap.completedAt = Date.now();
-
-      return swap;
-    } catch (error) {
-      console.error('Error refunding swap:', error);
-      throw new Error(`Failed to refund swap: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    const swap = this.swaps.get(swapId);
+    if (!swap) {
+      throw new Error('Swap not found');
     }
+
+    // For demo, immediately refund the swap
+    swap.status = 'refunded';
+    swap.completedAt = Date.now();
+
+    console.log('🔄 Swap refunded (Demo):', swap);
+    return swap;
   }
 
   /**
@@ -415,86 +272,44 @@ class CrossChainBridge {
     );
   }
 
-  // Helper methods
+  /**
+   * Generate a random secret for the atomic swap
+   */
   private generateSecret(): string {
-    return '0x' + Array.from(crypto.getRandomValues(new Uint8Array(32)))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+    return ethers.randomBytes(32).toString('hex');
   }
 
+  /**
+   * Get or create a Stellar account (Demo)
+   */
   private async getOrCreateStellarAccount(address: string): Promise<StellarAccount> {
-    // In a real implementation, this would:
-    // 1. Check if the account exists on Stellar
-    // 2. If not, create a new account
-    // 3. Return account details
-    
-    // For now, return a mock account
+    // For demo, return a mock account
     return {
       publicKey: address,
       balance: {
-        XLM: '100.0000000',
+        XLM: '1000.0000000',
+        USDC: '500.0000000',
+        USDT: '500.0000000'
       }
     };
   }
 
+  /**
+   * Get exchange rate for a token (Demo)
+   */
   private async getStellarExchangeRate(token: string): Promise<number> {
-    // In a real implementation, this would fetch the current exchange rate
-    // from Stellar's DEX or external price feeds
-    return 1.0; // Mock rate
+    // For demo, return 1:1 ratio
+    return 1.0;
   }
 
+  /**
+   * Send Stellar payment (Demo)
+   */
   private async sendStellarPayment(toAddress: string, asset: string, amount: string): Promise<void> {
-    // In a real implementation, this would:
-    // 1. Create a Stellar transaction
-    // 2. Sign it with the bridge account's secret key
-    // 3. Submit it to the Stellar network
-    
-    // For now, just simulate the process
-    console.log(`Sending ${amount} ${asset} to ${toAddress} on Stellar`);
-  }
-
-  private async refundEthereumSwap(swap: SwapStatus): Promise<void> {
-    if (!this.htlcContract) {
-      throw new Error('HTLC contract not initialized');
-    }
-
-    const signer = await this.ethereumProvider!.getSigner();
-    const refundTx = await this.htlcContract.refund(swap.id);
-    await refundTx.wait();
-  }
-
-  private async refundStellarSwap(swap: SwapStatus): Promise<void> {
-    // In a real implementation, this would refund the Stellar side of the swap
-    console.log(`Refunding Stellar swap ${swap.id}`);
-  }
-
-  private async monitorSwapCompletion(swapId: string): Promise<void> {
-    // Monitor the swap for completion
-    const interval = setInterval(async () => {
-      const swap = this.swaps.get(swapId);
-      if (!swap || swap.status !== 'initiated') {
-        clearInterval(interval);
-        return;
-      }
-
-      // Check if timelock has expired
-      if (Date.now() / 1000 >= swap.timelock) {
-        clearInterval(interval);
-        // Auto-refund if not completed
-        try {
-          await this.refundSwap(swapId);
-        } catch (error) {
-          console.error('Auto-refund failed:', error);
-        }
-      }
-    }, 30000); // Check every 30 seconds
-  }
-
-  private async monitorStellarTransaction(swapId: string): Promise<void> {
-    // Monitor Stellar transaction for completion
-    // This would integrate with Stellar's Horizon API
-    console.log(`Monitoring Stellar transaction for swap ${swapId}`);
+    // For demo, just log the payment
+    console.log(`💰 Stellar payment sent: ${amount} ${asset} to ${toAddress}`);
   }
 }
 
+// Export singleton instance
 export const crossChainBridge = new CrossChainBridge(); 
