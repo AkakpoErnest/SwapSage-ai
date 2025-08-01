@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { useWalletContext } from '@/contexts/WalletContext';
-import { Coins, Network, Activity, ChevronDown, ExternalLink } from 'lucide-react';
+import { Coins, Network, Activity, ChevronDown, ExternalLink, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,24 +10,60 @@ import {
 } from './ui/dropdown-menu';
 
 const Header: React.FC = () => {
-  const { walletState, connectEthereum, connectStellar, disconnect } = useWalletContext();
+  const { walletState, connectEthereum, connectStellar, disconnect, isConnecting } = useWalletContext();
+  const [isConnectingMetaMask, setIsConnectingMetaMask] = useState(false);
+  const [isConnectingFreighter, setIsConnectingFreighter] = useState(false);
   
   console.log('Header wallet state:', walletState);
 
   const handleNetworkSelect = async (network: 'ethereum' | 'stellar') => {
     console.log('Network selected:', network);
-    try {
-      if (network === 'ethereum') {
+    
+    if (network === 'ethereum') {
+      setIsConnectingMetaMask(true);
+      
+      try {
+        // Check if MetaMask is installed first
+        if (!window.ethereum) {
+          alert('MetaMask is not installed! Please install MetaMask to continue.');
+          window.open('https://metamask.io/download/', '_blank');
+          return;
+        }
+        
+        if (!window.ethereum.isMetaMask) {
+          alert('Please use MetaMask wallet to connect to Ethereum.');
+          return;
+        }
+        
         console.log('Attempting to connect Ethereum...');
         await connectEthereum();
         console.log('Ethereum connection completed');
-      } else if (network === 'stellar') {
+      } catch (error) {
+        console.error('Connection error:', error);
+        alert('Failed to connect to MetaMask. Please try again.');
+      } finally {
+        setIsConnectingMetaMask(false);
+      }
+    } else if (network === 'stellar') {
+      setIsConnectingFreighter(true);
+      
+      try {
+        // Check if Freighter is installed first
+        if (!window.freighter) {
+          alert('Freighter is not installed! Please install Freighter to continue.');
+          window.open('https://www.freighter.app/', '_blank');
+          return;
+        }
+        
         console.log('Attempting to connect Stellar...');
         await connectStellar();
         console.log('Stellar connection completed');
+      } catch (error) {
+        console.error('Connection error:', error);
+        alert('Failed to connect to Freighter. Please try again.');
+      } finally {
+        setIsConnectingFreighter(false);
       }
-    } catch (error) {
-      console.error('Connection error:', error);
     }
   };
 
@@ -132,15 +168,31 @@ const Header: React.FC = () => {
             <div className="flex space-x-2">
               <Button 
                 onClick={() => handleNetworkSelect('ethereum')}
+                disabled={isConnectingMetaMask || isConnectingFreighter}
                 className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
               >
-                Connect MetaMask
+                {isConnectingMetaMask ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  'Connect MetaMask'
+                )}
               </Button>
               <Button 
                 onClick={() => handleNetworkSelect('stellar')}
+                disabled={isConnectingMetaMask || isConnectingFreighter}
                 className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
               >
-                Connect Freighter
+                {isConnectingFreighter ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  'Connect Freighter'
+                )}
               </Button>
             </div>
           ) : (

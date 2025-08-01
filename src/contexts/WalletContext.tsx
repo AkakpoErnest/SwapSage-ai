@@ -47,8 +47,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Check if MetaMask is installed
   const isMetaMaskInstalled = () => {
+    console.log('Checking MetaMask installation...');
+    console.log('Window exists:', typeof window !== 'undefined');
+    console.log('Window ethereum exists:', typeof window !== 'undefined' && !!window.ethereum);
+    console.log('Window ethereum isMetaMask:', typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask);
+    
     const installed = typeof window !== 'undefined' && window.ethereum && window.ethereum.isMetaMask;
-    console.log('MetaMask installed check:', installed);
+    console.log('MetaMask installed check result:', installed);
     return installed;
   };
 
@@ -77,7 +82,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Connect to Ethereum wallet
   const connectEthereum = useCallback(async () => {
+    console.log('=== CONNECT ETHEREUM STARTED ===');
+    
     if (!isMetaMaskInstalled()) {
+      console.log('MetaMask not installed, setting error');
       setError({
         message: 'MetaMask is not installed. Please install MetaMask to continue.',
         code: 'METAMASK_NOT_INSTALLED'
@@ -85,16 +93,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
+    console.log('MetaMask is installed, proceeding with connection');
     setIsConnecting(true);
     setError(null);
 
     try {
-      console.log('Connecting to Ethereum wallet...');
+      console.log('Requesting account access...');
       
       // Request account access
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts'
       });
+
+      console.log('Account request response:', accounts);
 
       if (accounts.length === 0) {
         throw new Error('No accounts found');
@@ -102,13 +113,22 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       console.log('Accounts found:', accounts);
 
+      console.log('Creating ethers provider...');
       const provider = new ethers.BrowserProvider(window.ethereum);
+      
+      console.log('Getting signer...');
       const signer = await provider.getSigner();
+      
+      console.log('Getting address...');
       const address = await signer.getAddress();
+      
+      console.log('Getting network...');
       const network = await provider.getNetwork();
+      
+      console.log('Getting balance...');
       const balance = await provider.getBalance(address);
 
-      console.log('Wallet connected:', {
+      console.log('Wallet connected successfully:', {
         address,
         chainId: Number(network.chainId),
         balance: ethers.formatEther(balance),
@@ -124,14 +144,22 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         provider
       });
 
+      console.log('Wallet state updated successfully');
+
     } catch (err: any) {
       console.error('Ethereum connection error:', err);
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        stack: err.stack
+      });
       setError({
         message: err.message || 'Failed to connect to MetaMask',
         code: err.code
       });
     } finally {
       setIsConnecting(false);
+      console.log('=== CONNECT ETHEREUM FINISHED ===');
     }
   }, []);
 
