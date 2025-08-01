@@ -2,218 +2,214 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title SwapSageOracle
- * @dev Price oracle for SwapSage AI using Chainlink price feeds
+ * @dev AI-powered oracle for providing price feeds and swap recommendations
+ * 
+ * This contract acts as a central oracle that provides:
+ * - Price feeds for various tokens
+ * - AI-powered swap recommendations
+ * - Cross-chain price data
+ * 
  * @author SwapSage AI Team
  */
-contract SwapSageOracle is Ownable {
+contract SwapSageOracle is Ownable, ReentrancyGuard {
     
     struct PriceFeed {
-        address aggregator;
-        uint8 decimals;
-        string description;
-        bool isActive;
+        address token;
+        uint256 price; // Price in USD with 8 decimals
+        uint256 timestamp;
+        bool isValid;
     }
-
+    
+    struct SwapRecommendation {
+        address fromToken;
+        address toToken;
+        uint256 expectedAmount;
+        uint256 confidence; // 0-10000 (basis points)
+        uint256 timestamp;
+        bool isValid;
+    }
+    
     // Mapping from token address to price feed
     mapping(address => PriceFeed) public priceFeeds;
     
-    // Supported tokens
-    address[] public supportedTokens;
+    // Mapping from swap hash to recommendation
+    mapping(bytes32 => SwapRecommendation) public swapRecommendations;
     
     // Events
-    event PriceFeedAdded(address indexed token, address aggregator);
-    event PriceFeedRemoved(address indexed token);
-    event PriceFeedUpdated(address indexed token, address newAggregator);
-
+    event PriceFeedUpdated(address indexed token, uint256 price, uint256 timestamp);
+    event SwapRecommendationCreated(
+        bytes32 indexed swapHash,
+        address fromToken,
+        address toToken,
+        uint256 expectedAmount,
+        uint256 confidence
+    );
+    event OracleUpdated(address indexed oracle, bool isActive);
+    
+    // State variables
+    mapping(address => bool) public authorizedOracles;
+    uint256 public constant PRICE_DECIMALS = 8;
+    uint256 public constant CONFIDENCE_DECIMALS = 10000;
+    uint256 public minConfidence = 7000; // 70% minimum confidence
+    
+    modifier onlyAuthorizedOracle() {
+        require(authorizedOracles[msg.sender] || msg.sender == owner(), "Not authorized");
+        _;
+    }
+    
     constructor() Ownable(msg.sender) {
-        // Initialize with common tokens
-        _addPriceFeed(
-            0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE, // ETH
-            0x694AA1769357215DE4FAC081bf1f309aDC325306, // ETH/USD on Sepolia
-            8,
-            "ETH / USD"
-        );
-        
-        _addPriceFeed(
-            0xA0b86a33E6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d, // USDC (mock address)
-            0x1cDc4F51831F4d8a2C70b2e9A945978c5aB1d2e6, // USDC/USD on Sepolia
-            8,
-            "USDC / USD"
-        );
+        // Initialize with some default price feeds
+        priceFeeds[address(0)] = PriceFeed({
+            token: address(0),
+            price: 2000000000, // ETH at $2000
+            timestamp: block.timestamp,
+            isValid: true
+        });
     }
-
+    
     /**
-     * @dev Get the latest price for a token
-     * @param token The token address
-     * @return price The latest price in USD (with 8 decimals)
-     * @return timestamp The timestamp of the price
+     * @dev Update price feed for a token
+     * @param token Token address (address(0) for ETH)
+     * @param price Price in USD with 8 decimals
      */
-    function getLatestPrice(address token) 
+    function updatePriceFeed(address token, uint256 price) 
         external 
-        view 
-        returns (uint256 price, uint256 timestamp) 
+        onlyAuthorizedOracle 
+        nonReentrant 
     {
-        PriceFeed memory feed = priceFeeds[token];
-        require(feed.isActive, "Price feed not available");
-        
-        AggregatorV3Interface aggregator = AggregatorV3Interface(feed.aggregator);
-        
-        (
-            /* uint80 roundID */,
-            int256 answer,
-            /*uint startedAt*/,
-            uint256 timeStamp,
-            /*uint80 answeredInRound*/
-        ) = aggregator.latestRoundData();
-        
-        require(answer > 0, "Invalid price");
-        require(timeStamp > 0, "Invalid timestamp");
-        
-        return (uint256(answer), timeStamp);
-    }
-
-    /**
-     * @dev Get price with custom decimals
-     * @param token The token address
-     * @param decimals The number of decimals for the price
-     */
-    function getPriceWithDecimals(address token, uint8 decimals) 
-        external 
-        view 
-        returns (uint256) 
-    {
-        (uint256 price, ) = this.getLatestPrice(token);
-        PriceFeed memory feed = priceFeeds[token];
-        
-        if (feed.decimals > decimals) {
-            return price / (10 ** (feed.decimals - decimals));
-        } else if (feed.decimals < decimals) {
-            return price * (10 ** (decimals - feed.decimals));
-        }
-        
-        return price;
-    }
-
-    /**
-     * @dev Get the exchange rate between two tokens
-     * @param tokenA The first token
-     * @param tokenB The second token
-     * @return rate The exchange rate (tokenA/tokenB)
-     */
-    function getExchangeRate(address tokenA, address tokenB) 
-        external 
-        view 
-        returns (uint256 rate) 
-    {
-        (uint256 priceA, ) = this.getLatestPrice(tokenA);
-        (uint256 priceB, ) = this.getLatestPrice(tokenB);
-        
-        require(priceB > 0, "Invalid price for token B");
-        
-        // Calculate rate with 18 decimals precision
-        return (priceA * 1e18) / priceB;
-    }
-
-    /**
-     * @dev Add a new price feed
-     * @param token The token address
-     * @param aggregator The Chainlink aggregator address
-     * @param decimals The number of decimals for the price feed
-     * @param description The description of the price feed
-     */
-    function addPriceFeed(
-        address token,
-        address aggregator,
-        uint8 decimals,
-        string calldata description
-    ) external onlyOwner {
-        _addPriceFeed(token, aggregator, decimals, description);
-    }
-
-    /**
-     * @dev Remove a price feed
-     * @param token The token address
-     */
-    function removePriceFeed(address token) external onlyOwner {
-        require(priceFeeds[token].isActive, "Price feed not found");
-        
-        priceFeeds[token].isActive = false;
-        
-        // Remove from supported tokens array
-        for (uint i = 0; i < supportedTokens.length; i++) {
-            if (supportedTokens[i] == token) {
-                supportedTokens[i] = supportedTokens[supportedTokens.length - 1];
-                supportedTokens.pop();
-                break;
-            }
-        }
-        
-        emit PriceFeedRemoved(token);
-    }
-
-    /**
-     * @dev Update an existing price feed
-     * @param token The token address
-     * @param newAggregator The new Chainlink aggregator address
-     */
-    function updatePriceFeed(address token, address newAggregator) external onlyOwner {
-        require(priceFeeds[token].isActive, "Price feed not found");
-        require(newAggregator != address(0), "Invalid aggregator address");
-        
-        priceFeeds[token].aggregator = newAggregator;
-        
-        emit PriceFeedUpdated(token, newAggregator);
-    }
-
-    /**
-     * @dev Get all supported tokens
-     */
-    function getSupportedTokens() external view returns (address[] memory) {
-        return supportedTokens;
-    }
-
-    /**
-     * @dev Check if a token is supported
-     * @param token The token address
-     */
-    function isTokenSupported(address token) external view returns (bool) {
-        return priceFeeds[token].isActive;
-    }
-
-    /**
-     * @dev Get price feed details
-     * @param token The token address
-     */
-    function getPriceFeed(address token) external view returns (PriceFeed memory) {
-        return priceFeeds[token];
-    }
-
-    /**
-     * @dev Internal function to add a price feed
-     */
-    function _addPriceFeed(
-        address token,
-        address aggregator,
-        uint8 decimals,
-        string memory description
-    ) internal {
-        require(token != address(0), "Invalid token address");
-        require(aggregator != address(0), "Invalid aggregator address");
-        require(!priceFeeds[token].isActive, "Price feed already exists");
+        require(price > 0, "Invalid price");
         
         priceFeeds[token] = PriceFeed({
-            aggregator: aggregator,
-            decimals: decimals,
-            description: description,
-            isActive: true
+            token: token,
+            price: price,
+            timestamp: block.timestamp,
+            isValid: true
         });
         
-        supportedTokens.push(token);
+        emit PriceFeedUpdated(token, price, block.timestamp);
+    }
+    
+    /**
+     * @dev Create a swap recommendation
+     * @param fromToken Source token address
+     * @param toToken Destination token address
+     * @param expectedAmount Expected output amount
+     * @param confidence Confidence level (0-10000)
+     */
+    function createSwapRecommendation(
+        address fromToken,
+        address toToken,
+        uint256 expectedAmount,
+        uint256 confidence
+    ) 
+        external 
+        onlyAuthorizedOracle 
+        nonReentrant 
+    {
+        require(fromToken != toToken, "Same tokens");
+        require(expectedAmount > 0, "Invalid amount");
+        require(confidence <= CONFIDENCE_DECIMALS, "Invalid confidence");
+        require(confidence >= minConfidence, "Low confidence");
         
-        emit PriceFeedAdded(token, aggregator);
+        bytes32 swapHash = keccak256(
+            abi.encodePacked(fromToken, toToken, expectedAmount, block.timestamp)
+        );
+        
+        swapRecommendations[swapHash] = SwapRecommendation({
+            fromToken: fromToken,
+            toToken: toToken,
+            expectedAmount: expectedAmount,
+            confidence: confidence,
+            timestamp: block.timestamp,
+            isValid: true
+        });
+        
+        emit SwapRecommendationCreated(
+            swapHash,
+            fromToken,
+            toToken,
+            expectedAmount,
+            confidence
+        );
+    }
+    
+    /**
+     * @dev Get current price for a token
+     * @param token Token address
+     * @return price Current price in USD with 8 decimals
+     * @return timestamp Last update timestamp
+     * @return isValid Whether the price feed is valid
+     */
+    function getPrice(address token) 
+        external 
+        view 
+        returns (uint256 price, uint256 timestamp, bool isValid) 
+    {
+        PriceFeed memory feed = priceFeeds[token];
+        return (feed.price, feed.timestamp, feed.isValid);
+    }
+    
+    /**
+     * @dev Get swap recommendation
+     * @param swapHash Hash of the swap parameters
+     * @return recommendation The swap recommendation
+     */
+    function getSwapRecommendation(bytes32 swapHash) 
+        external 
+        view 
+        returns (SwapRecommendation memory recommendation) 
+    {
+        return swapRecommendations[swapHash];
+    }
+    
+    /**
+     * @dev Add or remove authorized oracle
+     * @param oracle Oracle address
+     * @param isActive Whether to authorize or deauthorize
+     */
+    function setAuthorizedOracle(address oracle, bool isActive) 
+        external 
+        onlyOwner 
+    {
+        authorizedOracles[oracle] = isActive;
+        emit OracleUpdated(oracle, isActive);
+    }
+    
+    /**
+     * @dev Set minimum confidence threshold
+     * @param newMinConfidence New minimum confidence (0-10000)
+     */
+    function setMinConfidence(uint256 newMinConfidence) 
+        external 
+        onlyOwner 
+    {
+        require(newMinConfidence <= CONFIDENCE_DECIMALS, "Invalid confidence");
+        minConfidence = newMinConfidence;
+    }
+    
+    /**
+     * @dev Emergency function to invalidate a price feed
+     * @param token Token address
+     */
+    function invalidatePriceFeed(address token) 
+        external 
+        onlyOwner 
+    {
+        priceFeeds[token].isValid = false;
+    }
+    
+    /**
+     * @dev Emergency function to invalidate a swap recommendation
+     * @param swapHash Hash of the swap parameters
+     */
+    function invalidateSwapRecommendation(bytes32 swapHash) 
+        external 
+        onlyOwner 
+    {
+        swapRecommendations[swapHash].isValid = false;
     }
 } 

@@ -1,11 +1,11 @@
-const hre = require("hardhat");
-
 async function main() {
+  const hre = require("hardhat");
+  const ethers = hre.ethers;
   console.log("🚀 Deploying SimpleHTLC to Sepolia testnet...");
 
   try {
     // Get the contract factory
-    const SimpleHTLC = await hre.ethers.getContractFactory("SimpleHTLC");
+    const SimpleHTLC = await ethers.getContractFactory("SimpleHTLC");
     
     console.log("📝 Deploying contract...");
     

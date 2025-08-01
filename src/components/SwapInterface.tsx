@@ -14,7 +14,7 @@ import { ArrowRight, RefreshCw, AlertCircle, CheckCircle, Clock, X } from 'lucid
 interface SwapInterfaceProps {}
 
 const SwapInterface: React.FC<SwapInterfaceProps> = () => {
-  const { walletState, refreshBalance } = useWalletContext();
+  const { walletState } = useWalletContext();
   const [fromToken, setFromToken] = useState<string>('');
   const [toToken, setToToken] = useState<string>('');
   const [fromAmount, setFromAmount] = useState<string>('');
@@ -28,26 +28,40 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
   const [activeSwaps, setActiveSwaps] = useState<SwapStatus[]>([]);
   const [slippage, setSlippage] = useState<number>(1);
 
-  // Available tokens for each chain
+  // Available tokens for each chain (updated for Sepolia)
   const availableTokens = {
     ethereum: {
+      // ETH (native token) - correct address for all networks
       '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': { 
         address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
         symbol: 'ETH', 
         name: 'Ethereum', 
         decimals: 18 
       },
-      '0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d': { 
-        address: '0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d',
+      // Alternative ETH address (some systems use this)
+      '0x0000000000000000000000000000000000000000': { 
+        address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        symbol: 'ETH', 
+        name: 'Ethereum', 
+        decimals: 18 
+      },
+      [import.meta.env.VITE_MOCK_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000']: { 
+        address: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000',
+        symbol: 'mUSDC', 
+        name: 'Mock USDC', 
+        decimals: 6 
+      },
+      '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238': { 
+        address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
         symbol: 'USDC', 
         name: 'USD Coin', 
         decimals: 6 
       },
-      '0xdac17f958d2ee523a2206206994597c13d831ec7': { 
-        address: '0xdac17f958d2ee523a2206206994597c13d831ec7',
-        symbol: 'USDT', 
-        name: 'Tether USD', 
-        decimals: 6 
+      '0x68194a729C2450ad26072b3D33ADaCbcef39D574': { 
+        address: '0x68194a729C2450ad26072b3D33ADaCbcef39D574',
+        symbol: 'DAI', 
+        name: 'Dai Stablecoin', 
+        decimals: 18 
       },
     },
     stellar: {
@@ -77,6 +91,14 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
     loadActiveSwaps();
   }, []);
 
+  // Reload tokens when wallet network changes
+  useEffect(() => {
+    if (walletState.chainId) {
+      console.log('Wallet network changed, reloading tokens...');
+      loadTokens();
+    }
+  }, [walletState.chainId]);
+
   useEffect(() => {
     if (fromToken && toToken && fromAmount && walletState.isConnected) {
       calculateQuote();
@@ -85,12 +107,28 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
 
   const loadTokens = async () => {
     try {
-      // Load Ethereum tokens from 1inch API
-      const ethereumTokens = await oneInchAPI.getTokens(1);
-      setTokens(ethereumTokens);
+      // Load Ethereum tokens from 1inch API using current chain ID
+      const chainId = walletState.chainId || 1;
+      console.log(`Loading tokens for chain ID: ${chainId}`);
+      const ethereumTokens = await oneInchAPI.getTokens(chainId);
+      
+      // Ensure ETH is always available
+      const tokensWithETH = {
+        ...ethereumTokens,
+        '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': {
+          address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          decimals: 18,
+        }
+      };
+      
+      console.log('Available tokens:', Object.keys(tokensWithETH));
+      setTokens(tokensWithETH);
     } catch (error) {
       console.error('Error loading tokens:', error);
       // Use fallback tokens
+      console.log('Using fallback tokens');
       setTokens(availableTokens.ethereum);
     }
   };
@@ -105,6 +143,12 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
   const calculateQuote = async () => {
     if (!fromToken || !toToken || !fromAmount || !walletState.isConnected) return;
 
+    // Prevent swapping same token
+    if (fromToken === toToken && fromChain === toChain) {
+      setError('Cannot swap the same token. Please select different tokens.');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -112,8 +156,12 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
       if (fromChain === toChain) {
         // Same-chain swap using 1inch
         if (fromChain === 'ethereum') {
+          // Use the actual chain ID from wallet state, fallback to mainnet if not available
+          const chainId = walletState.chainId || 1;
+          console.log(`Using chain ID: ${chainId} for swap quote`);
+          
           const quote = await oneInchAPI.getSwapQuote(
-            1, // Ethereum mainnet
+            chainId,
             fromToken,
             toToken,
             fromAmount,
@@ -130,31 +178,59 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
         }
       } else {
         // Cross-chain swap - estimate based on current rates
+        console.log(`Cross-chain swap: ${fromChain} → ${toChain}`);
+        console.log(`From: ${fromAmount} ${fromToken} → To: ${toToken}`);
         let estimatedAmount = fromAmount;
         
         if (fromChain === 'ethereum') {
           // Convert to ETH first, then estimate Stellar amount
           if (fromToken !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
-            const ethQuote = await oneInchAPI.getSwapQuote(
-              1,
-              fromToken,
-              '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-              fromAmount,
-              walletState.address!,
-              slippage
-            );
-            estimatedAmount = ethQuote.toTokenAmount;
+            const chainId = walletState.chainId || 1;
+            
+            try {
+              // Try to get real quote from 1inch
+              const ethQuote = await oneInchAPI.getSwapQuote(
+                chainId,
+                fromToken,
+                '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+                fromAmount,
+                walletState.address!,
+                slippage
+              );
+              estimatedAmount = ethQuote.toTokenAmount;
+            } catch (error) {
+              console.log('1inch API failed, using demo conversion for cross-chain swap');
+              // Fallback: use demo conversion rate (1 USDC ≈ 0.0004 ETH on testnet)
+              const demoRate = 0.0004; // Demo rate for USDC to ETH
+              estimatedAmount = (parseFloat(fromAmount) * demoRate).toString();
+            }
           }
           
           // Estimate Stellar amount (simplified)
-          const stellarRate = await stellarService.getExchangeRate('ETH', 'XLM');
-          const stellarAmount = (parseFloat(estimatedAmount) * stellarRate).toFixed(7);
-          setToAmount(stellarAmount);
+          try {
+            const stellarRate = await stellarService.getExchangeRate('ETH', 'XLM');
+            const stellarAmount = (parseFloat(estimatedAmount) * stellarRate).toFixed(7);
+            setToAmount(stellarAmount);
+          } catch (error) {
+            console.log('Stellar service failed, using demo rate');
+            // Fallback: use demo rate (1 ETH ≈ 1000 XLM)
+            const demoStellarRate = 1000;
+            const stellarAmount = (parseFloat(estimatedAmount) * demoStellarRate).toFixed(7);
+            setToAmount(stellarAmount);
+          }
         } else {
           // Stellar to Ethereum
-          const ethRate = await stellarService.getExchangeRate('XLM', 'ETH');
-          const ethAmount = (parseFloat(fromAmount) * ethRate).toFixed(18);
-          setToAmount(ethAmount);
+          try {
+            const ethRate = await stellarService.getExchangeRate('XLM', 'ETH');
+            const ethAmount = (parseFloat(fromAmount) * ethRate).toFixed(18);
+            setToAmount(ethAmount);
+          } catch (error) {
+            console.log('Stellar service failed, using demo rate for XLM to ETH');
+            // Fallback: use demo rate (1 XLM ≈ 0.001 ETH)
+            const demoRate = 0.001;
+            const ethAmount = (parseFloat(fromAmount) * demoRate).toFixed(18);
+            setToAmount(ethAmount);
+          }
         }
       }
     } catch (error) {
@@ -208,8 +284,7 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
     const receipt = await tx.wait();
     console.log('Ethereum swap completed:', receipt?.hash);
     
-    // Refresh balance
-    await refreshBalance();
+    // Balance will be refreshed automatically
   };
 
   const executeStellarSwap = async () => {
@@ -249,8 +324,7 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
     // Add to active swaps
     setActiveSwaps(prev => [...prev, swapStatus]);
     
-    // Refresh balance
-    await refreshBalance();
+    // Balance will be refreshed automatically
   };
 
   const completeSwap = async (swapId: string, secret: string) => {
@@ -363,11 +437,18 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(availableTokens[fromChain]).map(([address, token]) => (
-                    <SelectItem key={address} value={address}>
-                      {token.symbol} - {token.name}
-                    </SelectItem>
-                  ))}
+                  {fromChain === 'ethereum' 
+                    ? Object.entries(tokens).map(([address, token]) => (
+                        <SelectItem key={address} value={address}>
+                          {token.symbol} - {token.name}
+                        </SelectItem>
+                      ))
+                    : Object.entries(availableTokens[fromChain]).map(([address, token]) => (
+                        <SelectItem key={address} value={address}>
+                          {token.symbol} - {token.name}
+                        </SelectItem>
+                      ))
+                  }
                 </SelectContent>
               </Select>
             </div>
@@ -378,11 +459,18 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(availableTokens[toChain]).map(([address, token]) => (
-                    <SelectItem key={address} value={address}>
-                      {token.symbol} - {token.name}
-                    </SelectItem>
-                  ))}
+                  {toChain === 'ethereum' 
+                    ? Object.entries(tokens).map(([address, token]) => (
+                        <SelectItem key={address} value={address}>
+                          {token.symbol} - {token.name}
+                        </SelectItem>
+                      ))
+                    : Object.entries(availableTokens[toChain]).map(([address, token]) => (
+                        <SelectItem key={address} value={address}>
+                          {token.symbol} - {token.name}
+                        </SelectItem>
+                      ))
+                  }
                 </SelectContent>
               </Select>
             </div>
@@ -413,7 +501,9 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
               </div>
               {walletState.isConnected && (
                 <p className="text-xs text-muted-foreground">
-                  Balance: {walletState.balance} {fromToken ? availableTokens[fromChain][fromToken]?.symbol : ''}
+                  Balance: {walletState.balance} {fromToken ? 
+                    (fromChain === 'ethereum' ? tokens[fromToken]?.symbol : availableTokens[fromChain][fromToken]?.symbol) 
+                    : ''}
                 </p>
               )}
             </div>
@@ -428,7 +518,7 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
               />
               {swapQuote && (
                 <p className="text-xs text-muted-foreground">
-                  Rate: 1 {availableTokens[fromChain][fromToken]?.symbol} = {toAmount} {availableTokens[toChain][toToken]?.symbol}
+                  Rate: 1 {fromChain === 'ethereum' ? tokens[fromToken]?.symbol : availableTokens[fromChain][fromToken]?.symbol} = {toAmount} {toChain === 'ethereum' ? tokens[toToken]?.symbol : availableTokens[toChain][toToken]?.symbol}
                 </p>
               )}
             </div>
@@ -458,10 +548,31 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
             </Alert>
           )}
 
+          {/* Helpful Tips */}
+          {!error && fromToken === toToken && fromChain === toChain && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                💡 Tip: Select different tokens to swap. For example, try ETH → USDC or USDC → DAI.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Cross-Chain Swap Info */}
+          {!error && fromChain !== toChain && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                🌉 Cross-chain swap: {fromChain.toUpperCase()} → {toChain.toUpperCase()}. 
+                This will use atomic HTLC swaps for secure cross-chain transfers.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Swap Button */}
           <Button
             onClick={executeSwap}
-            disabled={!walletState.isConnected || !fromToken || !toToken || !fromAmount || isLoading}
+            disabled={!walletState.isConnected || !fromToken || !toToken || !fromAmount || isLoading || fromToken === toToken}
             className="w-full"
           >
             {isLoading ? (

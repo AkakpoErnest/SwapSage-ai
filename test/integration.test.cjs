@@ -20,11 +20,11 @@ describe("SwapSage AI Oracle - Integration Tests", function () {
     await oracle.waitForDeployment();
 
     const SwapSageHTLC = await ethers.getContractFactory("SwapSageHTLC");
-    htlc = await SwapSageHTLC.deploy();
+    htlc = await SwapSageHTLC.deploy(await oracle.getAddress());
     await htlc.waitForDeployment();
 
     const SwapSageExecutor = await ethers.getContractFactory("SwapSageExecutor");
-    executor = await SwapSageExecutor.deploy();
+    executor = await SwapSageExecutor.deploy(await oracle.getAddress());
     await executor.waitForDeployment();
 
     // Mint some tokens to users for testing

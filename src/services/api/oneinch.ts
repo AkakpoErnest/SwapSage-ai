@@ -49,6 +49,13 @@ class OneInchAPI {
   // Get supported tokens for a chain
   async getTokens(chainId: number): Promise<Record<string, Token>> {
     try {
+      // Check if this is a supported chain for 1inch
+      const supportedChains = [1, 11155111, 137, 80001]; // Mainnet, Sepolia, Polygon, Mumbai
+      if (!supportedChains.includes(chainId)) {
+        console.warn(`Chain ID ${chainId} not supported by 1inch API, using fallback tokens`);
+        return this.getFallbackTokens(chainId);
+      }
+
       const response = await fetch(`${this.baseUrl}/swap/v6.0/${chainId}/tokens`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
@@ -57,7 +64,16 @@ class OneInchAPI {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch tokens: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`1inch API error for chain ${chainId}:`, response.status, errorText);
+        
+        // For testnets, 1inch might have limited support
+        if (chainId === 11155111 || chainId === 80001) {
+          console.warn(`Testnet ${chainId} may have limited 1inch support, using fallback tokens`);
+          return this.getFallbackTokens(chainId);
+        }
+        
+        throw new Error(`Failed to fetch tokens: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
@@ -79,6 +95,22 @@ class OneInchAPI {
     slippage: number = 1
   ): Promise<SwapQuote> {
     try {
+      // Prevent swapping same token
+      if (fromTokenAddress === toTokenAddress) {
+        throw new Error('Cannot swap the same token. Please select different tokens.');
+      }
+
+      // Check if we're in development mode without API key
+      if (!this.apiKey || this.apiKey === 'demo-key') {
+        console.warn('Using fallback mode - no valid 1inch API key found');
+        return this.getFallbackSwapQuote(chainId, fromTokenAddress, toTokenAddress, amount, fromAddress, slippage);
+      }
+
+      // Validate input parameters
+      if (!fromTokenAddress || !toTokenAddress || !amount || !fromAddress) {
+        throw new Error('Missing required parameters for swap quote');
+      }
+
       const params = new URLSearchParams({
         src: fromTokenAddress,
         dst: toTokenAddress,
@@ -88,15 +120,22 @@ class OneInchAPI {
         disableEstimate: 'true',
       });
 
-      const response = await fetch(`${this.baseUrl}/swap/v6.0/${chainId}/swap?${params}`, {
+      const url = `${this.baseUrl}/swap/v6.0/${chainId}/swap?${params}`;
+      console.log('Making 1inch API request to:', url);
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Accept': 'application/json',
         },
       });
 
+      console.log('1inch API response status:', response.status, response.statusText);
+
       if (!response.ok) {
-        throw new Error(`Failed to get swap quote: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('1inch API error response:', errorText);
+        throw new Error(`Failed to get swap quote: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -213,12 +252,23 @@ class OneInchAPI {
 
     // Add USDC for Ethereum mainnet and testnets
     if (chainId === 1 || chainId === 11155111) { // Mainnet or Sepolia
-      tokens['0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d'] = {
-        address: '0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d',
-        symbol: 'USDC',
-        name: 'USD Coin',
-        decimals: 6,
-      };
+      if (chainId === 1) {
+        // Mainnet USDC
+        tokens['0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d'] = {
+          address: '0xa0b86a33e6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d',
+          symbol: 'USDC',
+          name: 'USD Coin',
+          decimals: 6,
+        };
+      } else if (chainId === 11155111) {
+        // Sepolia USDC (testnet)
+        tokens['0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'] = {
+          address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+          symbol: 'USDC',
+          name: 'USD Coin (Sepolia)',
+          decimals: 6,
+        };
+      }
     }
 
     // Add USDT for Ethereum mainnet
@@ -228,6 +278,23 @@ class OneInchAPI {
         symbol: 'USDT',
         name: 'Tether USD',
         decimals: 6,
+      };
+    }
+
+    // Add DAI for mainnet and testnets
+    if (chainId === 1) {
+      tokens['0x6b175474e89094c44da98b954eedeac495271d0f'] = {
+        address: '0x6b175474e89094c44da98b954eedeac495271d0f',
+        symbol: 'DAI',
+        name: 'Dai Stablecoin',
+        decimals: 18,
+      };
+    } else if (chainId === 11155111) {
+      tokens['0x68194a729C2450ad26072b3D33ADaCbcef39D574'] = {
+        address: '0x68194a729C2450ad26072b3D33ADaCbcef39D574',
+        symbol: 'DAI',
+        name: 'Dai Stablecoin (Sepolia)',
+        decimals: 18,
       };
     }
 
@@ -242,6 +309,55 @@ class OneInchAPI {
   private getTokenName(address: string, chainId: number): string {
     const tokens = this.getFallbackTokens(chainId);
     return tokens[address]?.name || 'Unknown Token';
+  }
+
+  // Fallback swap quote for development without API key
+  private getFallbackSwapQuote(
+    chainId: number,
+    fromTokenAddress: string,
+    toTokenAddress: string,
+    amount: string,
+    fromAddress: string,
+    slippage: number
+  ): SwapQuote {
+    // Prevent swapping same token
+    if (fromTokenAddress === toTokenAddress) {
+      throw new Error('Cannot swap the same token. Please select different tokens.');
+    }
+    const fromToken = this.getFallbackTokens(chainId)[fromTokenAddress] || {
+      address: fromTokenAddress,
+      symbol: 'UNKNOWN',
+      name: 'Unknown Token',
+      decimals: 18,
+    };
+
+    const toToken = this.getFallbackTokens(chainId)[toTokenAddress] || {
+      address: toTokenAddress,
+      symbol: 'UNKNOWN',
+      name: 'Unknown Token',
+      decimals: 18,
+    };
+
+    // Simple conversion for demo purposes
+    const amountNum = parseFloat(amount);
+    const toAmount = (amountNum * 0.98).toString(); // 2% slippage for demo
+
+    return {
+      fromToken,
+      toToken,
+      fromTokenAmount: amount,
+      toTokenAmount: toAmount,
+      protocols: ['1inch (demo)'],
+      estimatedGas: '180000',
+      tx: {
+        from: fromAddress,
+        to: '0x1111111254fb6c44bAC0beD2854e76F90643097d', // 1inch router
+        data: '0x', // Placeholder
+        value: fromTokenAddress === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' ? amount : '0',
+        gasPrice: '20000000000', // 20 gwei
+        gas: '180000',
+      },
+    };
   }
 }
 

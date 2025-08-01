@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,17 +33,19 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
   const [amount, setAmount] = useState("");
   const { toast } = useToast();
 
-  // Mock contract addresses (would come from deployment)
-  const mockContracts = {
-    htlc: "0x1234567890123456789012345678901234567890",
-    oracle: "0x0987654321098765432109876543210987654321",
-    executor: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+  // Real contract addresses from environment
+  const contracts = {
+    htlc: import.meta.env.VITE_HTLC_CONTRACT_ADDRESS || "0x1234567890123456789012345678901234567890",
+    oracle: import.meta.env.VITE_ORACLE_CONTRACT_ADDRESS || "0x0987654321098765432109876543210987654321",
+    executor: import.meta.env.VITE_EXECUTOR_CONTRACT_ADDRESS || "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    mockToken: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000"
   };
 
   const tokens = [
-    { symbol: "ETH", address: "0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE", name: "Ethereum" },
-    { symbol: "USDC", address: "0xA0b86a33E6b8b0b9c8d29b8a0d0d0e0f0a1b2c3d", name: "USD Coin" },
-    { symbol: "DAI", address: "0x6B175474E89094C44Da98b954EedeAC495271d0F", name: "Dai Stablecoin" }
+    { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", name: "Ethereum" },
+    { symbol: "mUSDC", address: contracts.mockToken, name: "Mock USDC" },
+    { symbol: "USDC", address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", name: "USD Coin" },
+    { symbol: "DAI", address: "0x68194a729C2450ad26072b3D33ADaCbcef39D574", name: "Dai Stablecoin" }
   ];
 
   useEffect(() => {
@@ -54,15 +57,45 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
   const fetchCurrentPrice = async () => {
     try {
       setIsLoading(true);
-      // Mock price data for demo
+      
+      // Get token address for selected token
+      const tokenInfo = tokens.find(t => t.symbol === selectedToken);
+      if (!tokenInfo) {
+        throw new Error(`Token ${selectedToken} not found`);
+      }
+
+      // Try to get price from Oracle contract
+      if (typeof window !== 'undefined' && window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const oracleABI = [
+          'function getPrice(address token) external view returns (uint256 price, uint256 timestamp, bool isValid)'
+        ];
+        const oracleContract = new ethers.Contract(contracts.oracle, oracleABI, provider);
+        
+        const [price, timestamp, isValid] = await oracleContract.getPrice(tokenInfo.address);
+        
+        if (isValid) {
+          const realPrice: OraclePrice = {
+            token: selectedToken,
+            price: ethers.formatUnits(price, 8),
+            timestamp: Number(timestamp) * 1000,
+            decimals: 8
+          };
+          setCurrentPrice(realPrice);
+          return;
+        }
+      }
+      
+      // Fallback to mock price if Oracle is not available
       const mockPrice: OraclePrice = {
         token: selectedToken,
-        price: selectedToken === "ETH" ? "3200.50" : "1.00",
+        price: selectedToken === "ETH" ? "2000.00" : "1.00",
         timestamp: Date.now(),
         decimals: 8
       };
       setCurrentPrice(mockPrice);
     } catch (error) {
+      console.error('Price fetch error:', error);
       toast({
         title: "Price Fetch Error",
         description: "Failed to fetch current price",
@@ -78,20 +111,62 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
 
     try {
       setIsLoading(true);
-      // Mock quote for demo
-      const mockQuote: SwapQuote = {
+      
+      // Get current price for calculation
+      const tokenInfo = tokens.find(t => t.symbol === selectedToken);
+      const toToken = selectedToken === "ETH" ? "mUSDC" : "ETH";
+      const toTokenInfo = tokens.find(t => t.symbol === toToken);
+      
+      if (!tokenInfo || !toTokenInfo) {
+        throw new Error("Token not found");
+      }
+
+      // Try to get quote from Executor contract
+      if (typeof window !== 'undefined' && window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const executorABI = [
+          'function getOptimalRoute(address fromToken, address toToken, uint256 amount) external view returns (bytes memory route, uint256 expectedOutput, uint256 confidence)'
+        ];
+        const executorContract = new ethers.Contract(contracts.executor, executorABI, provider);
+        
+        const amountWei = ethers.parseEther(amount);
+        const [route, expectedOutput, confidence] = await executorContract.getOptimalRoute(
+          tokenInfo.address,
+          toTokenInfo.address,
+          amountWei
+        );
+        
+        const realQuote: SwapQuote = {
+          fromToken: selectedToken,
+          toToken: toToken,
+          fromAmount: amount,
+          toAmount: ethers.formatEther(expectedOutput),
+          fee: (parseFloat(amount) * 0.001).toString(), // 0.1% fee
+          slippage: 0.5,
+          estimatedGas: "180000"
+        };
+        setSwapQuote(realQuote);
+        return;
+      }
+      
+      // Fallback to calculated quote
+      const currentPrice = parseFloat(selectedToken === "ETH" ? "2000.00" : "1.00");
+      const toAmount = selectedToken === "ETH" 
+        ? (parseFloat(amount) * currentPrice).toString()
+        : (parseFloat(amount) / currentPrice).toString();
+        
+      const fallbackQuote: SwapQuote = {
         fromToken: selectedToken,
-        toToken: selectedToken === "ETH" ? "USDC" : "ETH",
+        toToken: toToken,
         fromAmount: amount,
-        toAmount: selectedToken === "ETH" 
-          ? (parseFloat(amount) * 3200.50).toString()
-          : (parseFloat(amount) / 3200.50).toString(),
-        fee: (parseFloat(amount) * 0.003).toString(),
+        toAmount: toAmount,
+        fee: (parseFloat(amount) * 0.001).toString(),
         slippage: 0.5,
         estimatedGas: "180000"
       };
-      setSwapQuote(mockQuote);
+      setSwapQuote(fallbackQuote);
     } catch (error) {
+      console.error('Quote error:', error);
       toast({
         title: "Quote Error",
         description: "Failed to get swap quote",
@@ -113,11 +188,70 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       const hashlock = contractService.generateHashlock(secret);
       const timelock = contractService.calculateTimelock(2); // 2 hours
 
-      // Mock HTLC swap initiation
+      // Get token info
+      const tokenInfo = tokens.find(t => t.symbol === selectedToken);
+      const toToken = selectedToken === "ETH" ? "mUSDC" : "ETH";
+      const toTokenInfo = tokens.find(t => t.symbol === toToken);
+      
+      if (!tokenInfo || !toTokenInfo) {
+        throw new Error("Token not found");
+      }
+
+      // Try to initiate real HTLC swap
+      if (typeof window !== 'undefined' && window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        
+        const htlcABI = [
+          'function initiateSwap(address recipient, address fromToken, address toToken, uint256 fromAmount, uint256 toAmount, bytes32 hashlock, uint256 timelock) external payable'
+        ];
+        const htlcContract = new ethers.Contract(contracts.htlc, htlcABI, signer);
+        
+        const amountWei = ethers.parseEther(amount);
+        const toAmountWei = ethers.parseEther(swapQuote?.toAmount || "0");
+        
+        const tx = await htlcContract.initiateSwap(
+          walletAddress, // recipient (for demo, use same address)
+          tokenInfo.address,
+          toTokenInfo.address,
+          amountWei,
+          toAmountWei,
+          hashlock,
+          timelock,
+          { 
+            value: tokenInfo.address === "0x0000000000000000000000000000000000000000" ? amountWei : 0 
+          }
+        );
+        
+        const receipt = await tx.wait();
+        
+        // Create swap record
+        const realSwap: HTLCSwap = {
+          swapId: receipt.hash, // Use tx hash as swap ID for now
+          initiator: walletAddress,
+          recipient: walletAddress,
+          token: selectedToken,
+          amount: amount,
+          hashlock: hashlock,
+          timelock: timelock,
+          withdrawn: false,
+          refunded: false,
+          secret: secret
+        };
+        
+        setActiveSwaps(prev => [...prev, realSwap]);
+        toast({
+          title: "Swap Initiated",
+          description: `HTLC swap created successfully! TX: ${receipt.hash}`,
+        });
+        return;
+      }
+      
+      // Fallback to mock swap
       const mockSwap: HTLCSwap = {
         swapId: `0x${Math.random().toString(16).substr(2, 64)}`,
         initiator: walletAddress,
-        recipient: "0x" + "0".repeat(40), // Mock recipient
+        recipient: walletAddress,
         token: selectedToken,
         amount: amount,
         hashlock: hashlock,

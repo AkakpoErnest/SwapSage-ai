@@ -56,6 +56,7 @@ const BridgeInterface = () => {
 
   // Available chains
   const chains: Chain[] = [
+    { id: 11155111, name: "Sepolia", symbol: "ETH", icon: "🔷", color: "blue", status: "testnet" },
     { id: 1, name: "Ethereum", symbol: "ETH", icon: "🔷", color: "blue", status: "live" },
     { id: 137, name: "Polygon", symbol: "MATIC", icon: "🟣", color: "purple", status: "live" },
     { id: 42161, name: "Arbitrum", symbol: "ARB", icon: "🔵", color: "cyan", status: "live" },
@@ -64,13 +65,15 @@ const BridgeInterface = () => {
     { id: 100, name: "Stellar", symbol: "XLM", icon: "⭐", color: "white", status: "testnet" },
   ];
 
-  // Available tokens
+  // Available tokens (updated for Sepolia testnet)
   const tokens: Token[] = [
-    { symbol: "ETH", name: "Ethereum", address: "0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE", decimals: 18, icon: "🔷", chainId: 1 },
-    { symbol: "USDC", name: "USD Coin", address: "0xA0b86a33E6441b8c4C8C8C8C8C8C8C8C8C8C8C8C", decimals: 6, icon: "💵", chainId: 1 },
-    { symbol: "MATIC", name: "Polygon", address: "0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE", decimals: 18, icon: "🟣", chainId: 137 },
+    { symbol: "ETH", name: "Ethereum", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🔷", chainId: 11155111 },
+    { symbol: "mUSDC", name: "Mock USDC", address: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000", decimals: 6, icon: "💵", chainId: 11155111 },
+    { symbol: "USDC", name: "USD Coin", address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", decimals: 6, icon: "💵", chainId: 11155111 },
+    { symbol: "DAI", name: "Dai Stablecoin", address: "0x68194a729C2450ad26072b3D33ADaCbcef39D574", decimals: 18, icon: "🟢", chainId: 11155111 },
+    { symbol: "MATIC", name: "Polygon", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🟣", chainId: 137 },
     { symbol: "USDC", name: "USD Coin", address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", decimals: 6, icon: "💵", chainId: 137 },
-    { symbol: "ARB", name: "Arbitrum", address: "0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE", decimals: 18, icon: "🔵", chainId: 42161 },
+    { symbol: "ARB", name: "Arbitrum", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🔵", chainId: 42161 },
     { symbol: "XLM", name: "Stellar Lumens", address: "native", decimals: 7, icon: "⭐", chainId: 100 },
   ];
 

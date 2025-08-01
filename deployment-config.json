@@ -6,10 +6,10 @@
       "rpcUrl": "https://sepolia.infura.io/v3/YOUR_PROJECT_ID",
       "explorerUrl": "https://sepolia.etherscan.io",
       "contracts": {
-        "htlc": "0x1234567890123456789012345678901234567890",
-        "oracle": "0x2345678901234567890123456789012345678901",
-        "executor": "0x3456789012345678901234567890123456789012",
-        "mockToken": "0x4567890123456789012345678901234567890123"
+        "oracle": "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1",
+        "htlc": "0xd7c66D8B635152709fbe14E72eF91C9417391f37",
+        "executor": "0x9209383Dd4fce1bF82aA26c6476Bbf795d1DfF48",
+        "mockToken": "0xE560De00F664dE3C0B3815dd1AF4b6DF64123563"
       },
       "tokens": {
         "ETH": {
@@ -113,8 +113,11 @@
   },
   "frontend": {
     "defaultNetwork": "sepolia",
-    "supportedNetworks": ["sepolia", "polygon"],
+    "supportedNetworks": [
+      "sepolia",
+      "polygon"
+    ],
     "autoConnect": true,
     "pollingInterval": 15000
   }
-} 
+}

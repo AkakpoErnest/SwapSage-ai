@@ -1,11 +1,11 @@
-const hre = require("hardhat");
+const { ethers } = require("hardhat");
 
 async function main() {
   console.log("🚀 Deploying SimpleHTLC to Sepolia testnet...");
 
   try {
     // Get the contract factory
-    const SimpleHTLC = await hre.ethers.getContractFactory("SimpleHTLC");
+    const SimpleHTLC = await ethers.getContractFactory("SimpleHTLC");
     
     console.log("📝 Deploying contract...");
     
@@ -13,9 +13,9 @@ async function main() {
     const htlc = await SimpleHTLC.deploy();
     
     // Wait for deployment to complete
-    await htlc.deployed();
+    await htlc.waitForDeployment();
     
-    const address = htlc.address;
+    const address = await htlc.getAddress();
     
     console.log("✅ SimpleHTLC deployed to:", address);
     console.log("📋 Contract address for .env.local:");
