@@ -55,49 +55,128 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
   }, [isConnected, selectedToken]);
 
   const fetchCurrentPrice = async () => {
+    if (!selectedToken) return;
+    
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      
-      // Get token address for selected token
+      // Get live Polygon price feeds
       const tokenInfo = tokens.find(t => t.symbol === selectedToken);
       if (!tokenInfo) {
-        throw new Error(`Token ${selectedToken} not found`);
+        throw new Error("Token not found");
       }
 
-      // Try to get price from Oracle contract
+      // Map token addresses to symbols for API calls
+      const tokenSymbols: Record<string, string> = {
+        '0x0000000000000000000000000000000000000000': 'ethereum', // ETH
+        '0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE': 'ethereum', // ETH (alternative)
+        '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': 'usd-coin', // USDC
+        '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': 'dai', // DAI
+        '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': 'wrapped-bitcoin', // WBTC
+        '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 'matic', // WMATIC
+      };
+
+      const symbol = tokenSymbols[tokenInfo.address];
+      if (!symbol) {
+        throw new Error(`No symbol mapping for token ${selectedToken}`);
+      }
+
+      // Try CoinGecko API first (free, reliable)
+      try {
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd&include_24hr_change=true`);
+        const data = await response.json();
+        
+        if (data[symbol] && data[symbol].usd) {
+          const livePrice: OraclePrice = {
+            token: selectedToken,
+            price: data[symbol].usd.toString(),
+            timestamp: Date.now(),
+            decimals: 8
+          };
+          setCurrentPrice(livePrice);
+          console.log(`✅ Live Polygon price for ${selectedToken}: $${data[symbol].usd}`);
+          return;
+        }
+      } catch (coingeckoError) {
+        console.warn('CoinGecko API failed, trying alternative sources:', coingeckoError);
+      }
+
+      // Try 1inch API as backup
+      try {
+        const response = await fetch(`https://api.1inch.dev/price/v1.1/137/${tokenInfo.address}`);
+        const data = await response.json();
+        
+        if (data && data.price) {
+          const livePrice: OraclePrice = {
+            token: selectedToken,
+            price: data.price.toString(),
+            timestamp: Date.now(),
+            decimals: 8
+          };
+          setCurrentPrice(livePrice);
+          console.log(`✅ Live Polygon price from 1inch for ${selectedToken}: $${data.price}`);
+          return;
+        }
+      } catch (oneinchError) {
+        console.warn('1inch API failed:', oneinchError);
+      }
+
+      // Try Chainlink price feeds on Polygon as final backup
       if (typeof window !== 'undefined' && window.ethereum) {
         try {
           const provider = new ethers.BrowserProvider(window.ethereum);
-          const oracleABI = [
-            'function getPrice(address token) external view returns (uint256 price, uint256 timestamp, bool isValid)'
-          ];
-          const oracleContract = new ethers.Contract(contracts.oracle, oracleABI, provider);
           
-          const [price, timestamp, isValid] = await oracleContract.getPrice(tokenInfo.address);
-          
-          if (isValid && price > 0) {
-            const realPrice: OraclePrice = {
-              token: selectedToken,
-              price: ethers.formatUnits(price, 8),
-              timestamp: Number(timestamp) * 1000,
-              decimals: 8
-            };
-            setCurrentPrice(realPrice);
-            return;
+          // Chainlink price feed addresses on Polygon
+          const chainlinkFeeds: Record<string, string> = {
+            '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': '0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7', // USDC/USD
+            '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': '0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D', // DAI/USD
+            '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': '0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6', // WBTC/USD
+          };
+
+          const feedAddress = chainlinkFeeds[tokenInfo.address];
+          if (feedAddress) {
+            const feedABI = [
+              'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)'
+            ];
+            
+            const feedContract = new ethers.Contract(feedAddress, feedABI, provider);
+            const [, answer, , updatedAt] = await feedContract.latestRoundData();
+            
+            // Check if price is recent (within 1 hour)
+            const now = Math.floor(Date.now() / 1000);
+            if (now - Number(updatedAt) < 3600) {
+              const price = Number(ethers.formatUnits(answer, 8));
+              const livePrice: OraclePrice = {
+                token: selectedToken,
+                price: price.toString(),
+                timestamp: Date.now(),
+                decimals: 8
+              };
+              setCurrentPrice(livePrice);
+              console.log(`✅ Live Polygon price from Chainlink for ${selectedToken}: $${price}`);
+              return;
+            }
           }
-        } catch (oracleError) {
-          console.warn('Oracle contract not accessible, using fallback price:', oracleError);
+        } catch (chainlinkError) {
+          console.warn('Chainlink price feed failed:', chainlinkError);
         }
       }
-      
-      // Fallback to mock price if Oracle is not available
-      const mockPrice: OraclePrice = {
+
+      // If all live sources fail, use fallback
+      console.warn('All live price sources failed, using fallback price');
+      const fallbackPrice: OraclePrice = {
         token: selectedToken,
         price: selectedToken === "ETH" ? "2000.00" : "1.00",
         timestamp: Date.now(),
         decimals: 8
       };
-      setCurrentPrice(mockPrice);
+      setCurrentPrice(fallbackPrice);
+      
+      toast({
+        title: "Price Fetch Warning",
+        description: "Using fallback price - Live feeds temporarily unavailable",
+        variant: "destructive",
+      });
+      
     } catch (error) {
       console.error('Price fetch error:', error);
       // Set a fallback price even on error to prevent UI issues
@@ -111,7 +190,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       
       toast({
         title: "Price Fetch Error",
-        description: "Using fallback price - Oracle contract not accessible",
+        description: "Using fallback price - Live feeds unavailable",
         variant: "destructive",
       });
     } finally {

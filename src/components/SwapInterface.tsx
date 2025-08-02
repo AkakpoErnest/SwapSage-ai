@@ -372,40 +372,81 @@ const SwapInterface: React.FC = () => {
     if (!swapQuote) throw new Error('No swap quote available');
 
     try {
-      // For now, let's use the 1inch swap directly since HTLC contracts need more setup
-      const signer = await walletState.provider!.getSigner();
+      console.log('🔍 Starting Polygon swap execution...');
+      console.log('Wallet connected:', walletState.isConnected);
+      console.log('Wallet address:', walletState.address);
+      console.log('Provider available:', !!walletState.provider);
+      
+      // Validate wallet connection
+      if (!walletState.provider || !walletState.address) {
+        throw new Error('Wallet not properly connected. Please reconnect your wallet.');
+      }
+
+      const signer = await walletState.provider.getSigner();
+      console.log('Signer obtained:', !!signer);
       
       // Check if user has enough balance
-      const balance = await walletState.provider!.getBalance(walletState.address!);
-      const requiredValue = swapQuote.tx.value || 0n;
+      const balance = await walletState.provider.getBalance(walletState.address);
+      const requiredValue = BigInt(swapQuote.tx.value || '0');
+      
+      console.log('User balance:', ethers.formatEther(balance), 'MATIC');
+      console.log('Required value:', ethers.formatEther(requiredValue), 'MATIC');
       
       if (balance < requiredValue) {
         throw new Error(`Insufficient balance. Required: ${ethers.formatEther(requiredValue)} MATIC, Available: ${ethers.formatEther(balance)} MATIC`);
       }
 
+      console.log('✅ Balance check passed');
       console.log('Executing 1inch swap on Polygon...');
       console.log('To:', swapQuote.tx.to);
-      console.log('Value:', ethers.formatEther(swapQuote.tx.value || 0n), 'MATIC');
+      console.log('Value:', ethers.formatEther(requiredValue), 'MATIC');
       console.log('Gas Limit:', swapQuote.estimatedGas);
+      console.log('Data length:', swapQuote.tx.data.length);
 
-      const tx = await signer.sendTransaction({
+      // Prepare transaction
+      const txRequest = {
         to: swapQuote.tx.to,
         data: swapQuote.tx.data,
-        value: swapQuote.tx.value,
-        gasLimit: swapQuote.estimatedGas,
-      });
+        value: requiredValue,
+        gasLimit: BigInt(swapQuote.estimatedGas || '300000'),
+      };
 
-      console.log('Transaction sent:', tx.hash);
+      console.log('Transaction request:', txRequest);
+
+      const tx = await signer.sendTransaction(txRequest);
+
+      console.log('✅ Transaction sent:', tx.hash);
+      
+      // Wait for confirmation
       const receipt = await tx.wait();
-      console.log('Polygon swap completed:', receipt?.hash);
+      console.log('✅ Polygon swap completed:', receipt?.hash);
       
       // Show success message
       setError('');
       alert(`Swap completed successfully! Transaction: ${receipt?.hash}`);
       
+      // Refresh the page to update balances
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+      
     } catch (error) {
-      console.error('Error executing Polygon swap:', error);
-      throw new Error(`Swap failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Error executing Polygon swap:', error);
+      
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('insufficient funds')) {
+          throw new Error('Insufficient MATIC balance for gas fees. Please add more MATIC to your wallet.');
+        } else if (error.message.includes('user rejected')) {
+          throw new Error('Transaction was rejected by user. Please try again.');
+        } else if (error.message.includes('network')) {
+          throw new Error('Network error. Please check your internet connection and try again.');
+        } else {
+          throw new Error(`Swap failed: ${error.message}`);
+        }
+      } else {
+        throw new Error(`Swap failed: ${error}`);
+      }
     }
   };
 
@@ -501,6 +542,82 @@ const SwapInterface: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Diagnostic Section - Only show in development */}
+      {import.meta.env.DEV && (
+        <Card className="p-4 bg-yellow-50 border-yellow-200">
+          <CardHeader>
+            <CardTitle className="text-yellow-800">🔧 Diagnostic Panel (Development Only)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="text-sm">
+              <p><strong>Wallet Status:</strong> {walletState.isConnected ? '✅ Connected' : '❌ Disconnected'}</p>
+              <p><strong>Wallet Address:</strong> {walletState.address || 'None'}</p>
+              <p><strong>Chain ID:</strong> {walletState.chainId || 'None'}</p>
+              <p><strong>Provider:</strong> {walletState.provider ? '✅ Available' : '❌ Missing'}</p>
+              <p><strong>1inch API Key:</strong> {import.meta.env.VITE_1INCH_API_KEY ? '✅ Set' : '❌ Missing'}</p>
+              <p><strong>From Token:</strong> {fromToken || 'None'}</p>
+              <p><strong>To Token:</strong> {toToken || 'None'}</p>
+              <p><strong>From Amount:</strong> {fromAmount || 'None'}</p>
+              <p><strong>Swap Quote:</strong> {swapQuote ? '✅ Available' : '❌ None'}</p>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => {
+                  console.log('=== DIAGNOSTIC TEST ===');
+                  console.log('Wallet State:', walletState);
+                  console.log('Tokens:', { fromToken, toToken, fromAmount });
+                  console.log('Chains:', { fromChain, toChain });
+                  console.log('Environment:', {
+                    apiKey: import.meta.env.VITE_1INCH_API_KEY ? 'Set' : 'Missing',
+                    dev: import.meta.env.DEV,
+                    mode: import.meta.env.MODE
+                  });
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Log Debug Info
+              </Button>
+              <Button 
+                onClick={async () => {
+                  try {
+                    if (walletState.provider) {
+                      const balance = await walletState.provider.getBalance(walletState.address!);
+                      alert(`Balance: ${ethers.formatEther(balance)} MATIC`);
+                    } else {
+                      alert('No provider available');
+                    }
+                  } catch (error) {
+                    alert(`Error: ${error}`);
+                  }
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Check Balance
+              </Button>
+              <Button 
+                onClick={async () => {
+                  try {
+                    console.log('Testing 1inch API...');
+                    const tokens = await oneInchAPI.getTokens(137); // Polygon mainnet
+                    console.log('1inch tokens:', tokens);
+                    alert(`1inch API working! Found ${Object.keys(tokens).length} tokens`);
+                  } catch (error) {
+                    console.error('1inch API test failed:', error);
+                    alert(`1inch API failed: ${error}`);
+                  }
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Test 1inch API
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Swap Interface */}
       <Card>
         <CardHeader>

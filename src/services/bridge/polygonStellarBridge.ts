@@ -389,28 +389,118 @@ class PolygonStellarBridge {
   }
 
   /**
-   * Get token price
+   * Get token price from live Polygon feeds
    */
   private async getTokenPrice(chain: 'polygon' | 'stellar', token: string): Promise<number | null> {
     if (chain === 'polygon') {
-      // Get price from Polygon oracle
-      if (!this.polygonProvider) return null;
-      
       try {
-        const oracleContract = new ethers.Contract(this.polygonOracle, [
-          'function getPrice(address token) external view returns (uint256 price, uint256 timestamp, bool isValid)'
-        ], this.polygonProvider);
+        // Map token addresses to symbols for API calls
+        const tokenSymbols: Record<string, string> = {
+          '0x0000000000000000000000000000000000000000': 'matic', // MATIC
+          '0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE': 'matic', // MATIC (alternative)
+          '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': 'usd-coin', // USDC
+          '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': 'dai', // DAI
+          '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': 'wrapped-bitcoin', // WBTC
+          '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 'wmatic', // WMATIC
+        };
+
+        const symbol = tokenSymbols[token];
+        if (!symbol) {
+          console.warn(`No symbol mapping for token ${token}, using fallback price`);
+          return this.getFallbackPolygonPrice(token);
+        }
+
+        // Try CoinGecko API first (free, reliable)
+        try {
+          const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd&include_24hr_change=true`);
+          const data = await response.json();
+          
+          if (data[symbol] && data[symbol].usd) {
+            console.log(`✅ Live Polygon price for ${symbol}: $${data[symbol].usd}`);
+            return data[symbol].usd;
+          }
+        } catch (coingeckoError) {
+          console.warn('CoinGecko API failed, trying alternative sources:', coingeckoError);
+        }
+
+        // Try 1inch API as backup
+        try {
+          const response = await fetch(`https://api.1inch.dev/price/v1.1/137/${token}`);
+          const data = await response.json();
+          
+          if (data && data.price) {
+            console.log(`✅ Live Polygon price from 1inch for ${token}: $${data.price}`);
+            return data.price;
+          }
+        } catch (oneinchError) {
+          console.warn('1inch API failed:', oneinchError);
+        }
+
+        // Try Chainlink price feeds on Polygon
+        try {
+          if (!this.polygonProvider) return null;
+          
+          // Chainlink price feed addresses on Polygon
+          const chainlinkFeeds: Record<string, string> = {
+            '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': '0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7', // USDC/USD
+            '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': '0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D', // DAI/USD
+            '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': '0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6', // WBTC/USD
+          };
+
+          const feedAddress = chainlinkFeeds[token];
+          if (feedAddress) {
+            const feedABI = [
+              'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)'
+            ];
+            
+            const feedContract = new ethers.Contract(feedAddress, feedABI, this.polygonProvider);
+            const [, answer, , updatedAt] = await feedContract.latestRoundData();
+            
+            // Check if price is recent (within 1 hour)
+            const now = Math.floor(Date.now() / 1000);
+            if (now - Number(updatedAt) < 3600) {
+              const price = Number(ethers.formatUnits(answer, 8));
+              console.log(`✅ Live Polygon price from Chainlink for ${token}: $${price}`);
+              return price;
+            }
+          }
+        } catch (chainlinkError) {
+          console.warn('Chainlink price feed failed:', chainlinkError);
+        }
+
+        // If all live sources fail, use fallback
+        console.warn('All live price sources failed, using fallback price');
+        return this.getFallbackPolygonPrice(token);
         
-        const [price, , isValid] = await oracleContract.getPrice(token);
-        return isValid ? Number(ethers.formatUnits(price, 8)) : null;
       } catch (error) {
-        console.error('Failed to get Polygon price from Oracle, using fallback:', error);
-        // Fallback to mock prices when Oracle is not accessible
+        console.error('Failed to get live Polygon price:', error);
         return this.getFallbackPolygonPrice(token);
       }
     } else {
-      // Get Stellar price (would use Stellar DEX or external API)
-      // For demo, return mock prices
+      // Get Stellar price from live sources
+      try {
+        const stellarTokens: Record<string, string> = {
+          'XLM': 'stellar',
+          'USDC': 'usd-coin',
+          'native': 'stellar',
+          'stellar:USDC': 'usd-coin'
+        };
+
+        const symbol = stellarTokens[token];
+        if (symbol) {
+          const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd`);
+          const data = await response.json();
+          
+          if (data[symbol] && data[symbol].usd) {
+            console.log(`✅ Live Stellar price for ${symbol}: $${data[symbol].usd}`);
+            return data[symbol].usd;
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to get live Stellar price:', error);
+      }
+
+      // Fallback to mock prices for Stellar
       const prices: Record<string, number> = {
         'XLM': 0.1,
         'USDC': 1.0,
