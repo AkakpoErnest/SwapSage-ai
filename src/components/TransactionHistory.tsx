@@ -181,7 +181,21 @@ const TransactionHistory = () => {
 
   useEffect(() => {
     if (walletState.isConnected && walletState.address) {
+      // Immediately load transaction history when wallet connects
       loadTransactionHistory();
+      
+      // Set up real-time updates for new transactions
+      const interval = setInterval(() => {
+        if (walletState.isConnected && walletState.address) {
+          loadTransactionHistory();
+        }
+      }, 10000); // Check every 10 seconds for new transactions
+      
+      return () => clearInterval(interval);
+    } else {
+      // Clear transactions when wallet disconnects
+      setTransactions([]);
+      setFilteredTransactions([]);
     }
   }, [walletState.isConnected, walletState.address]);
 

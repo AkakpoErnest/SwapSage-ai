@@ -58,6 +58,7 @@ const BridgeInterface = () => {
   const [bridgeStatus, setBridgeStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
   const [autoSelectWallet, setAutoSelectWallet] = useState(true);
   const [generatedWallets, setGeneratedWallets] = useState<Record<number, string>>({});
+  const [activeBridgeProcesses, setActiveBridgeProcesses] = useState<any[]>([]);
 
   const { walletState } = useWallet();
   const { toast } = useToast();
@@ -230,6 +231,62 @@ const BridgeInterface = () => {
     }
   };
 
+  const addBridgeProcess = (processData: any) => {
+    const process = {
+      id: `bridge-${Date.now()}`,
+      fromChain: fromChain?.name || '',
+      toChain: toChain?.name || '',
+      fromToken: fromToken?.symbol || '',
+      toToken: toToken?.symbol || '',
+      fromAmount: amount,
+      toAmount: bridgeQuote?.toAmount || "0",
+      status: 'initiating' as const,
+      steps: [
+        {
+          id: 'initiate',
+          name: 'Initiating Bridge',
+          status: 'processing' as const,
+          description: 'Creating bridge transaction...',
+          timestamp: Date.now()
+        },
+        {
+          id: 'confirm',
+          name: 'Confirming Transaction',
+          status: 'pending' as const,
+          description: 'Waiting for blockchain confirmation...'
+        },
+        {
+          id: 'process',
+          name: 'Processing Bridge',
+          status: 'pending' as const,
+          description: 'Executing cross-chain transfer...'
+        },
+        {
+          id: 'complete',
+          name: 'Bridge Complete',
+          status: 'pending' as const,
+          description: 'Transfer completed successfully'
+        }
+      ],
+      startTime: Date.now(),
+      estimatedTime: 300000, // 5 minutes
+      recipient: recipient
+    };
+
+    setActiveBridgeProcesses(prev => [...prev, process]);
+    return process.id;
+  };
+
+  const updateBridgeProcess = (processId: string, updates: any) => {
+    setActiveBridgeProcesses(prev => 
+      prev.map(process => 
+        process.id === processId 
+          ? { ...process, ...updates }
+          : process
+      )
+    );
+  };
+
   const handleExecuteBridge = async () => {
     // Check each required field individually and provide specific error messages
     if (!fromChain) {
@@ -277,10 +334,13 @@ const BridgeInterface = () => {
       return;
     }
 
-    // Use recipient if provided, otherwise use wallet address
-    let finalRecipient = recipient || walletState.address;
-    
-    // For cross-chain swaps, validate the recipient address format
+          // Use recipient if provided, otherwise use wallet address
+      let finalRecipient = recipient || walletState.address;
+      
+      // Create bridge process tracker
+      const processId = addBridgeProcess({});
+      
+      // For cross-chain swaps, validate the recipient address format
     if (fromChain?.name.toLowerCase() === 'polygon' && toChain?.name.toLowerCase() === 'stellar') {
       // For Polygon to Stellar, recipient should be a Stellar address
       if (!finalRecipient) {
@@ -377,6 +437,38 @@ const BridgeInterface = () => {
           ...prev,
           [fromChain.id]: `Generated for swap ${result.swapId.slice(0, 8)}...`
         }));
+      }
+
+      // Update bridge process with success
+      if (result && result.swapId) {
+        // Update step 1: Initiating
+        updateBridgeProcess(processId, {
+          status: 'processing',
+          'steps.0.status': 'completed',
+          'steps.1.status': 'processing'
+        });
+
+        // Simulate processing steps
+        setTimeout(() => {
+          updateBridgeProcess(processId, {
+            'steps.1.status': 'completed',
+            'steps.2.status': 'processing'
+          });
+
+          setTimeout(() => {
+            updateBridgeProcess(processId, {
+              'steps.2.status': 'completed',
+              'steps.3.status': 'processing'
+            });
+
+            setTimeout(() => {
+              updateBridgeProcess(processId, {
+                status: 'completed',
+                'steps.3.status': 'completed'
+              });
+            }, 2000);
+          }, 3000);
+        }, 2000);
       }
       
       toast({
@@ -759,6 +851,99 @@ const BridgeInterface = () => {
           </div>
         </div>
       </Card>
+
+      {/* Bridge Process Tracker */}
+      {activeBridgeProcesses.length > 0 && (
+        <Card className="p-6 bg-gradient-card border-neon-purple/20">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">🔄 Active Bridge Processes</h3>
+              <Badge variant="secondary">{activeBridgeProcesses.length} Active</Badge>
+            </div>
+
+            {activeBridgeProcesses.map((process) => (
+              <div key={process.id} className="p-4 bg-space-gray rounded-lg border border-neon-purple/20">
+                <div className="space-y-4">
+                  {/* Process Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{process.fromToken}</span>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{process.toToken}</span>
+                      </div>
+                      <Badge 
+                        variant="outline" 
+                        className={
+                          process.status === 'completed' ? 'text-green-500 border-green-500/30' :
+                          process.status === 'failed' ? 'text-red-500 border-red-500/30' :
+                          'text-blue-500 border-blue-500/30'
+                        }
+                      >
+                        {process.status.charAt(0).toUpperCase() + process.status.slice(1)}
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {Math.round((Date.now() - process.startTime) / 1000)}s elapsed
+                    </div>
+                  </div>
+
+                  {/* Bridge Steps */}
+                  <div className="space-y-3">
+                    {process.steps.map((step: any, index: number) => (
+                      <div key={step.id} className="flex items-center gap-3">
+                        <div className={`flex items-center justify-center w-6 h-6 rounded-full ${
+                          step.status === 'completed' ? 'bg-green-500/20' :
+                          step.status === 'processing' ? 'bg-blue-500/20' :
+                          step.status === 'failed' ? 'bg-red-500/20' :
+                          'bg-muted/20'
+                        }`}>
+                          {step.status === 'completed' ? <CheckCircle className="w-4 h-4 text-green-500" /> :
+                           step.status === 'processing' ? <Loader2 className="w-4 h-4 text-blue-500 animate-spin" /> :
+                           step.status === 'failed' ? <AlertCircle className="w-4 h-4 text-red-500" /> :
+                           <Clock className="w-4 h-4 text-muted-foreground" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-sm font-medium ${
+                              step.status === 'completed' ? 'text-green-500' :
+                              step.status === 'processing' ? 'text-blue-500' :
+                              step.status === 'failed' ? 'text-red-500' :
+                              'text-muted-foreground'
+                            }`}>
+                              {step.name}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{step.description}</p>
+                          {step.error && (
+                            <p className="text-xs text-red-500 mt-1">{step.error}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Process Details */}
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-muted/20">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Amount</p>
+                      <p className="text-sm font-medium text-white">
+                        {process.fromAmount} {process.fromToken} → {process.toAmount} {process.toToken}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Chains</p>
+                      <p className="text-sm font-medium text-white">
+                        {process.fromChain} → {process.toChain}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
