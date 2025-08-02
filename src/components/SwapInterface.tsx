@@ -14,6 +14,9 @@ import { ArrowRight, RefreshCw, AlertCircle, CheckCircle, Clock, X } from 'lucid
 
 const SwapInterface: React.FC = () => {
   const { walletState } = useWalletContext();
+  
+  // Debug wallet state
+  console.log('SwapInterface wallet state:', walletState);
   const [fromToken, setFromToken] = useState<string>('');
   const [toToken, setToToken] = useState<string>('');
   const [fromAmount, setFromAmount] = useState<string>('');
@@ -559,8 +562,22 @@ const SwapInterface: React.FC = () => {
           {!walletState.isConnected && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Please connect your wallet to start swapping
+              <AlertDescription className="flex items-center justify-between">
+                <span>Please connect your wallet to start swapping</span>
+                <Button 
+                  onClick={async () => {
+                    try {
+                      const { connectEthereum } = useWalletContext();
+                      await connectEthereum();
+                    } catch (error) {
+                      console.error('Failed to connect wallet:', error);
+                    }
+                  }}
+                  size="sm"
+                  className="ml-4"
+                >
+                  Connect Wallet
+                </Button>
               </AlertDescription>
             </Alert>
           )}

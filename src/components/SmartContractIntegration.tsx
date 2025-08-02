@@ -29,7 +29,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
   const [currentPrice, setCurrentPrice] = useState<OraclePrice | null>(null);
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
   const [activeSwaps, setActiveSwaps] = useState<HTLCSwap[]>([]);
-  const [selectedToken, setSelectedToken] = useState("ETH");
+  const [selectedToken, setSelectedToken] = useState("MATIC");
   const [amount, setAmount] = useState("");
   const { toast } = useToast();
 
@@ -42,10 +42,12 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
   };
 
   const tokens = [
-    { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", name: "Ethereum" },
-    { symbol: "mUSDC", address: contracts.mockToken, name: "Mock USDC" },
-    { symbol: "USDC", address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", name: "USD Coin" },
-    { symbol: "DAI", address: "0x68194a729C2450ad26072b3D33ADaCbcef39D574", name: "Dai Stablecoin" }
+    { symbol: "MATIC", address: "0x0000000000000000000000000000000000000000", name: "Polygon" },
+    { symbol: "WMATIC", address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", name: "Wrapped MATIC" },
+    { symbol: "USDC", address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", name: "USD Coin" },
+    { symbol: "DAI", address: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063", name: "Dai Stablecoin" },
+    { symbol: "WBTC", address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", name: "Wrapped Bitcoin" },
+    { symbol: "USDT", address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", name: "Tether USD" }
   ];
 
   useEffect(() => {
@@ -65,14 +67,14 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         throw new Error("Token not found");
       }
 
-      // Map token addresses to symbols for API calls
+      // Map token addresses to symbols for API calls (Polygon Mainnet)
       const tokenSymbols: Record<string, string> = {
-        '0x0000000000000000000000000000000000000000': 'ethereum', // ETH
-        '0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE': 'ethereum', // ETH (alternative)
+        '0x0000000000000000000000000000000000000000': 'matic', // MATIC (native)
+        '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 'matic', // WMATIC
         '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': 'usd-coin', // USDC
         '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': 'dai', // DAI
         '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': 'wrapped-bitcoin', // WBTC
-        '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 'matic', // WMATIC
+        '0xc2132D05D31c914a87C6611C10748AEb04B58e8F': 'tether', // USDT
       };
 
       const symbol = tokenSymbols[tokenInfo.address];
@@ -165,7 +167,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       console.warn('All live price sources failed, using fallback price');
       const fallbackPrice: OraclePrice = {
         token: selectedToken,
-        price: selectedToken === "ETH" ? "2000.00" : "1.00",
+        price: selectedToken === "MATIC" ? "0.80" : selectedToken === "WBTC" ? "45000.00" : "1.00",
         timestamp: Date.now(),
         decimals: 8
       };
@@ -182,7 +184,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       // Set a fallback price even on error to prevent UI issues
       const fallbackPrice: OraclePrice = {
         token: selectedToken,
-        price: selectedToken === "ETH" ? "2000.00" : "1.00",
+        price: selectedToken === "MATIC" ? "0.80" : selectedToken === "WBTC" ? "45000.00" : "1.00",
         timestamp: Date.now(),
         decimals: 8
       };
@@ -206,7 +208,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       
       // Get current price for calculation
       const tokenInfo = tokens.find(t => t.symbol === selectedToken);
-      const toToken = selectedToken === "ETH" ? "mUSDC" : "ETH";
+      const toToken = selectedToken === "MATIC" ? "USDC" : "MATIC";
       const toTokenInfo = tokens.find(t => t.symbol === toToken);
       
       if (!tokenInfo || !toTokenInfo) {
@@ -242,8 +244,8 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       }
       
       // Fallback to calculated quote
-      const currentPrice = parseFloat(selectedToken === "ETH" ? "2000.00" : "1.00");
-      const toAmount = selectedToken === "ETH" 
+      const currentPrice = parseFloat(selectedToken === "MATIC" ? "0.80" : "1.00");
+      const toAmount = selectedToken === "MATIC" 
         ? (parseFloat(amount) * currentPrice).toString()
         : (parseFloat(amount) / currentPrice).toString();
         
@@ -277,7 +279,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       
       // Get token info
       const tokenInfo = tokens.find(t => t.symbol === selectedToken);
-      const toToken = selectedToken === "ETH" ? "mUSDC" : "ETH";
+      const toToken = selectedToken === "MATIC" ? "USDC" : "MATIC";
       const toTokenInfo = tokens.find(t => t.symbol === toToken);
       
       if (!tokenInfo || !toTokenInfo) {
@@ -292,8 +294,8 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       const timelock = Math.floor(Date.now() / 1000) + 3600;
       
       // Get current price for calculation
-      const currentPrice = parseFloat(selectedToken === "ETH" ? "2000.00" : "1.00");
-      const toAmount = selectedToken === "ETH" 
+      const currentPrice = parseFloat(selectedToken === "MATIC" ? "0.80" : "1.00");
+      const toAmount = selectedToken === "MATIC" 
         ? (parseFloat(amount) * currentPrice).toString()
         : (parseFloat(amount) / currentPrice).toString();
 
@@ -441,9 +443,9 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-neon-green" />
-            Live Price Feeds
+            🟣 Live Polygon Price Feeds
           </h3>
-          <Badge variant="secondary">Chainlink Oracle</Badge>
+          <Badge variant="secondary">Polygon Oracle</Badge>
         </div>
         
         <div className="space-y-4">
@@ -490,9 +492,9 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Zap className="w-5 h-5 text-neon-purple" />
-            Get Swap Quote
+            🟣 Polygon Swap Quote
           </h3>
-          <Badge variant="secondary">1inch Aggregation</Badge>
+          <Badge variant="secondary">1inch Fusion</Badge>
         </div>
 
         <div className="space-y-4">

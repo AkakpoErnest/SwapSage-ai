@@ -65,7 +65,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 
 
-  // Connect to Ethereum wallet - Simplified version
+  // Connect to Ethereum wallet - Enhanced version with circuit breaker handling
   const connectEthereum = useCallback(async () => {
     console.log('🔄 Starting Ethereum connection...');
     
@@ -86,22 +86,73 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       console.log('📝 Requesting accounts...');
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      });
+      
+      // Handle circuit breaker error by retrying with different approach
+      let accounts;
+      try {
+        accounts = await window.ethereum.request({
+          method: 'eth_requestAccounts'
+        });
+      } catch (requestError: any) {
+        console.log('⚠️ First attempt failed, trying alternative method...');
+        
+        // If circuit breaker is open, try alternative connection method
+        if (requestError.code === -32603 && requestError.data?.cause?.isBrokenCircuitError) {
+          console.log('🔄 Circuit breaker detected, trying alternative connection...');
+          
+          // Try to get accounts without requesting (if already approved)
+          try {
+            accounts = await window.ethereum.request({
+              method: 'eth_accounts'
+            });
+            
+            if (!accounts || accounts.length === 0) {
+              throw new Error('No accounts available. Please unlock MetaMask and try again.');
+            }
+          } catch (accountsError: any) {
+            throw new Error('MetaMask is locked or not connected. Please unlock MetaMask and refresh the page.');
+          }
+        } else {
+          throw requestError;
+        }
+      }
 
       console.log('✅ Accounts received:', accounts);
 
       if (!accounts || accounts.length === 0) {
-        throw new Error('No accounts found');
+        throw new Error('No accounts found. Please unlock MetaMask and try again.');
       }
 
       const address = accounts[0];
       console.log('📍 Using address:', address);
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      const balance = await provider.getBalance(address);
+      // Create provider with error handling
+      let provider;
+      try {
+        provider = new ethers.BrowserProvider(window.ethereum);
+      } catch (providerError: any) {
+        console.error('❌ Provider creation failed:', providerError);
+        throw new Error('Failed to create Ethereum provider. Please refresh the page.');
+      }
+
+      // Get network info with retry logic
+      let network;
+      try {
+        network = await provider.getNetwork();
+      } catch (networkError: any) {
+        console.error('❌ Network detection failed:', networkError);
+        // Use default network if detection fails
+        network = { chainId: BigInt(1) }; // Default to mainnet
+      }
+
+      // Get balance with error handling
+      let balance;
+      try {
+        balance = await provider.getBalance(address);
+      } catch (balanceError: any) {
+        console.error('❌ Balance fetch failed:', balanceError);
+        balance = BigInt(0); // Default to 0 if balance fetch fails
+      }
 
       const newWalletState = {
         isConnected: true,
@@ -115,13 +166,36 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.log('✅ Wallet connected:', newWalletState);
       setWalletState(newWalletState);
 
+      // Show success message
+      console.log('🎉 Wallet connection successful!');
+
     } catch (err: any) {
       console.error('❌ Connection failed:', err);
+      
+      let errorMessage = 'Failed to connect to MetaMask';
+      let errorCode = err.code;
+
+      // Handle specific error types
+      if (err.code === -32603 && err.data?.cause?.isBrokenCircuitError) {
+        errorMessage = 'MetaMask connection temporarily unavailable. Please refresh the page and try again.';
+        errorCode = 'CIRCUIT_BREAKER';
+      } else if (err.code === 4001) {
+        errorMessage = 'Connection rejected by user. Please approve the connection in MetaMask.';
+        errorCode = 'USER_REJECTED';
+      } else if (err.code === -32002) {
+        errorMessage = 'MetaMask connection request already pending. Please check MetaMask.';
+        errorCode = 'REQUEST_PENDING';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
       setError({
-        message: err.message || 'Failed to connect to MetaMask',
-        code: err.code
+        message: errorMessage,
+        code: errorCode
       });
-      alert(`Failed to connect: ${err.message}`);
+
+      // Show user-friendly error message
+      console.error('❌ Connection error:', errorMessage);
     } finally {
       setIsConnecting(false);
       console.log('🏁 Connection attempt finished');

@@ -14,9 +14,11 @@ import {
   Loader2,
   Activity,
   Network,
-  Coins
+  Coins,
+  WalletIcon
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
+import { useWalletContext } from "@/contexts/WalletContext";
 import { transactionHistoryService } from "@/services/transactionHistory";
 import { bridgeService } from "@/services/bridge/bridgeService";
 import { useToast } from "@/hooks/use-toast";
@@ -245,8 +247,30 @@ const TransactionHistory = () => {
   if (!walletState.isConnected) {
     return (
       <Card className="p-6 bg-gradient-card border-neon-cyan/20">
-        <div className="text-center text-muted-foreground">
-          Connect your wallet to view transaction history
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-full bg-gradient-primary flex items-center justify-center">
+            <Activity className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold text-white mb-2">Connect Your Wallet</h3>
+            <p className="text-muted-foreground mb-4">
+              Connect your wallet to view your on-chain transaction history
+            </p>
+            <Button 
+              onClick={async () => {
+                try {
+                  const { connectEthereum } = useWalletContext();
+                  await connectEthereum();
+                } catch (error) {
+                  console.error('Failed to connect wallet:', error);
+                }
+              }}
+              className="bg-gradient-primary hover:bg-gradient-primary/80"
+            >
+              <WalletIcon className="w-4 h-4 mr-2" />
+              Connect Wallet
+            </Button>
+          </div>
         </div>
       </Card>
     );
