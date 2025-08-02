@@ -54,6 +54,56 @@ const BridgeInterface = () => {
   const { walletState } = useWallet();
   const { toast } = useToast();
 
+  // Enhanced chain selection with error handling
+  const handleChainChange = (chain: Chain | null, type: 'from' | 'to') => {
+    try {
+      if (type === 'from') {
+        setFromChain(chain);
+        // Reset tokens when chain changes
+        setFromToken(null);
+        setToToken(null);
+      } else {
+        setToChain(chain);
+        setToToken(null);
+      }
+      
+      // Clear bridge quote when chains change
+      setBridgeQuote(null);
+    } catch (error) {
+      console.error('Chain selection error:', error);
+      toast({
+        title: "Selection Error",
+        description: "Failed to select chain. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Enhanced token selection with validation
+  const handleTokenChange = (token: Token | null, type: 'from' | 'to') => {
+    try {
+      if (type === 'from') {
+        setFromToken(token);
+        // Reset to token if it's the same as the new from token
+        if (toToken && toToken.address === token?.address) {
+          setToToken(null);
+        }
+      } else {
+        setToToken(token);
+      }
+      
+      // Clear bridge quote when tokens change
+      setBridgeQuote(null);
+    } catch (error) {
+      console.error('Token selection error:', error);
+      toast({
+        title: "Selection Error",
+        description: "Failed to select token. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Available chains
   const chains: Chain[] = [
     { id: 11155111, name: "Sepolia", symbol: "ETH", icon: "🔷", color: "blue", status: "testnet" },
@@ -252,8 +302,7 @@ const BridgeInterface = () => {
               <label className="text-sm font-medium mb-2 block">From Chain</label>
               <Select value={fromChain?.id.toString()} onValueChange={(value) => {
                 const chain = chains.find(c => c.id.toString() === value);
-                setFromChain(chain || null);
-                setFromToken(null);
+                handleChainChange(chain || null, 'from');
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select source chain" />
@@ -278,7 +327,7 @@ const BridgeInterface = () => {
               <label className="text-sm font-medium mb-2 block">From Token</label>
               <Select value={fromToken?.address} onValueChange={(value) => {
                 const token = tokens.find(t => t.address === value);
-                setFromToken(token || null);
+                handleTokenChange(token || null, 'from');
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select token" />
@@ -315,8 +364,7 @@ const BridgeInterface = () => {
               <label className="text-sm font-medium mb-2 block">To Chain</label>
               <Select value={toChain?.id.toString()} onValueChange={(value) => {
                 const chain = chains.find(c => c.id.toString() === value);
-                setToChain(chain || null);
-                setToToken(null);
+                handleChainChange(chain || null, 'to');
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select destination chain" />
@@ -341,7 +389,7 @@ const BridgeInterface = () => {
               <label className="text-sm font-medium mb-2 block">To Token</label>
               <Select value={toToken?.address} onValueChange={(value) => {
                 const token = tokens.find(t => t.address === value);
-                setToToken(token || null);
+                handleTokenChange(token || null, 'to');
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select token" />
