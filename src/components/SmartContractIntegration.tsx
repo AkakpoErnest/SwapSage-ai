@@ -132,184 +132,14 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         throw new Error("Chain not found");
       }
 
-      // Map token addresses to CoinGecko symbols for different chains
-      const tokenSymbols: Record<string, Record<string, string>> = {
-        ethereum: {
-          '0x0000000000000000000000000000000000000000': 'ethereum',
-          '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2': 'ethereum',
-          '0xA0b86a33E6441b8C4C8C8C8C8C8C8C8C8C8C8C8': 'usd-coin',
-          '0x6B175474E89094C44Da98b954EedeAC495271d0F': 'dai',
-          '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': 'wrapped-bitcoin',
-          '0xdAC17F958D2ee523a2206206994597C13D831ec7': 'tether',
-        },
-        polygon: {
-          '0x0000000000000000000000000000000000000000': 'matic',
-          '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 'matic',
-          '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': 'usd-coin',
-          '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': 'dai',
-          '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6': 'wrapped-bitcoin',
-          '0xc2132D05D31c914a87C6611C10748AEb04B58e8F': 'tether',
-        },
-        bsc: {
-          '0x0000000000000000000000000000000000000000': 'binancecoin',
-          '0xbb4CdB9CBd36B01bD1cBaEF2aFd8d6f6f4f4f4f4': 'binancecoin',
-          '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d': 'usd-coin',
-          '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56': 'binance-usd',
-          '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82': 'pancakeswap-token',
-        },
-        arbitrum: {
-          '0x0000000000000000000000000000000000000000': 'ethereum',
-          '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1': 'ethereum',
-          '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8': 'usd-coin',
-          '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9': 'tether',
-        },
-        optimism: {
-          '0x0000000000000000000000000000000000000000': 'ethereum',
-          '0x4200000000000000000000000000000000000006': 'ethereum',
-          '0x7F5c764cBc14f9669B88837ca1490cCa17c31607': 'usd-coin',
-          '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58': 'tether',
-        },
-        avalanche: {
-          '0x0000000000000000000000000000000000000000': 'avalanche-2',
-          '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7': 'avalanche-2',
-          '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E': 'usd-coin',
-          '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7': 'tether',
-        },
-        stellar: {
-          'native': 'stellar',
-          'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34KUEKUS': 'usd-coin',
-          'USDT:GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZCCVTJ6': 'tether',
-        },
-      };
-
-      const symbol = tokenSymbols[selectedChain]?.[tokenInfo.address];
-      if (!symbol) {
-        throw new Error(`No symbol mapping for token ${selectedToken} on ${selectedChain}`);
+      // For Stellar, use CoinGecko API
+      if (selectedChain === 'stellar') {
+        await fetchStellarPrice(selectedToken);
+        return;
       }
 
-      // Try 1inch API first (network-specific pricing)
-      if (selectedChain !== 'stellar') {
-        try {
-          const response = await fetch(`https://api.1inch.dev/price/v1.1/${currentChain.chainId}/${tokenInfo.address}`);
-          const data = await response.json();
-          
-          if (data && data.price) {
-            const livePrice: OraclePrice = {
-              token: selectedToken,
-              price: data.price.toString(),
-              timestamp: Date.now(),
-              decimals: 8
-            };
-            setCurrentPrice(livePrice);
-            console.log(`✅ Live ${currentChain.name} price from 1inch for ${selectedToken}: $${data.price}`);
-            return;
-          }
-        } catch (oneinchError) {
-          console.warn('1inch API failed, trying CoinGecko:', oneinchError);
-        }
-      }
-
-      // Try CoinGecko API as backup (free, reliable)
-      try {
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd&include_24hr_change=true`);
-        const data = await response.json();
-        
-        if (data[symbol] && data[symbol].usd) {
-          const livePrice: OraclePrice = {
-            token: selectedToken,
-            price: data[symbol].usd.toString(),
-            timestamp: Date.now(),
-            decimals: 8
-          };
-          setCurrentPrice(livePrice);
-          console.log(`✅ Live ${currentChain.name} price from CoinGecko for ${selectedToken}: $${data[symbol].usd}`);
-          return;
-        }
-      } catch (coingeckoError) {
-        console.warn('CoinGecko API failed, trying Chainlink:', coingeckoError);
-      }
-
-      // Try Chainlink price feeds as final backup (only for EVM chains)
-      if (selectedChain !== 'stellar' && typeof window !== 'undefined' && window.ethereum) {
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          
-          // Chainlink price feed addresses by chain
-          const chainlinkFeeds: Record<string, Record<string, string>> = {
-            ethereum: {
-              '0xA0b86a33E6441b8C4C8C8C8C8C8C8C8C8C8C8C8': '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6', // USDC/USD
-              '0x6B175474E89094C44Da98b954EedeAC495271d0F': '0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee5', // DAI/USD
-              '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': '0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c', // WBTC/USD
-            },
-            polygon: {
-              '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': '0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7', // USDC/USD
-              '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': '0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D', // DAI/USD
-              '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6': '0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6', // WBTC/USD
-            },
-            arbitrum: {
-              '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8': '0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3', // USDC/USD
-              '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9': '0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE9', // USDT/USD
-            },
-            optimism: {
-              '0x7F5c764cBc14f9669B88837ca1490cCa17c31607': '0x16a9FA2FDaF272466054d8Bf8E4B85d6b5D778ca', // USDC/USD
-              '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58': '0xECef79E109e997bCA29c1c0897ec9d7b03647F5E', // USDT/USD
-            },
-          };
-
-          const feedAddress = chainlinkFeeds[selectedChain]?.[tokenInfo.address];
-          if (feedAddress) {
-            const feedABI = [
-              'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)'
-            ];
-            
-            const feedContract = new ethers.Contract(feedAddress, feedABI, provider);
-            const [, answer, , updatedAt] = await feedContract.latestRoundData();
-            
-            // Check if price is recent (within 1 hour)
-            const now = Math.floor(Date.now() / 1000);
-            if (now - Number(updatedAt) < 3600) {
-              const price = Number(ethers.formatUnits(answer, 8));
-              const livePrice: OraclePrice = {
-                token: selectedToken,
-                price: price.toString(),
-                timestamp: Date.now(),
-                decimals: 8
-              };
-              setCurrentPrice(livePrice);
-              console.log(`✅ Live Polygon price from Chainlink for ${selectedToken}: $${price}`);
-              return;
-            }
-          }
-        } catch (chainlinkError) {
-          console.warn('Chainlink price feed failed:', chainlinkError);
-        }
-      }
-
-      // If all live sources fail, use fallback
-      console.warn('All live price sources failed, using fallback price');
-      const fallbackPrices: Record<string, Record<string, string>> = {
-        ethereum: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", DAI: "1.00", WBTC: "45000.00", USDT: "1.00" },
-        polygon: { MATIC: "0.80", WMATIC: "0.80", USDC: "1.00", DAI: "1.00", WBTC: "45000.00", USDT: "1.00" },
-        bsc: { BNB: "300.00", WBNB: "300.00", USDC: "1.00", BUSD: "1.00", CAKE: "2.50" },
-        arbitrum: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", USDT: "1.00" },
-        optimism: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", USDT: "1.00" },
-        avalanche: { AVAX: "25.00", WAVAX: "25.00", USDC: "1.00", USDT: "1.00" },
-        stellar: { XLM: "0.12", USDC: "1.00", USDT: "1.00" },
-      };
-
-      const fallbackPrice: OraclePrice = {
-        token: selectedToken,
-        price: fallbackPrices[selectedChain]?.[selectedToken] || "1.00",
-        timestamp: Date.now(),
-        decimals: 8
-      };
-      setCurrentPrice(fallbackPrice);
-      
-      toast({
-        title: "Price Fetch Warning",
-        description: "Using fallback price - Live feeds temporarily unavailable",
-        variant: "destructive",
-      });
+      // For EVM chains, try 1inch API first
+      await fetch1inchPrice(currentChain.chainId, tokenInfo.address, selectedToken);
       
     } catch (error) {
       console.error('Price fetch error:', error);
@@ -339,6 +169,122 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetch1inchPrice = async (chainId: number, tokenAddress: string, tokenSymbol: string) => {
+    const apiKey = import.meta.env.VITE_1INCH_API_KEY || 'Wyfjpg5CDkOZfhK7lmKrVVgkkawHd28O';
+    const baseUrl = 'https://api.1inch.dev';
+    
+    // Use USDC as the destination token for price calculation
+    const usdcAddresses = {
+      1: '0xA0b86a33E6441b8C4C8C8C8C8C8C8C8C8C8C8C8C8', // Ethereum USDC
+      137: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // Polygon USDC
+      56: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', // BSC USDC
+      42161: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', // Arbitrum USDC
+      10: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607', // Optimism USDC
+      43114: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', // Avalanche USDC
+    };
+
+    const usdcAddress = usdcAddresses[chainId as keyof typeof usdcAddresses];
+    if (!usdcAddress) {
+      throw new Error(`No USDC address for chain ${chainId}`);
+    }
+
+    // Try multiple CORS proxies for reliability
+    const corsProxies = [
+      'https://api.allorigins.win/raw?url=',
+      'https://cors-anywhere.herokuapp.com/',
+      'https://thingproxy.freeboard.io/fetch/',
+      '' // Direct request (might work in some environments)
+    ];
+
+    let response: Response | null = null;
+    let lastError: Error | null = null;
+
+    for (const proxy of corsProxies) {
+      try {
+        const url = `${proxy}${baseUrl}/quote/v6.0/${chainId}?src=${tokenAddress}&dst=${usdcAddress}&amount=1000000000000000000`;
+        console.log(`🔍 Trying 1inch API with proxy: ${proxy ? 'CORS proxy' : 'direct'}`);
+        
+        response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'application/json',
+            'Origin': 'http://localhost:8080',
+          },
+        });
+        
+        if (response.ok) {
+          console.log('✅ 1inch API request successful');
+          break;
+        }
+      } catch (error) {
+        console.warn(`Failed with proxy ${proxy}:`, error);
+        lastError = error as Error;
+        response = null;
+      }
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(`1inch API failed: ${lastError?.message || response?.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.toTokenAmount) {
+      throw new Error('Invalid response from 1inch API');
+    }
+
+    // Calculate price in USD (USDC has 6 decimals)
+    const price = parseFloat(data.toTokenAmount) / 1000000;
+    
+    const livePrice: OraclePrice = {
+      token: tokenSymbol,
+      price: price.toFixed(6),
+      timestamp: Date.now(),
+      decimals: 8
+    };
+    
+    setCurrentPrice(livePrice);
+    console.log(`✅ Live ${tokenSymbol} price from 1inch: $${price.toFixed(6)}`);
+    
+    toast({
+      title: "Live Price Updated",
+      description: `${tokenSymbol}: $${price.toFixed(6)} from 1inch API`,
+    });
+  };
+
+  const fetchStellarPrice = async (tokenSymbol: string) => {
+    try {
+      // Use CoinGecko for Stellar tokens
+      const symbol = tokenSymbol === 'XLM' ? 'stellar' : 
+                    tokenSymbol === 'USDC' ? 'usd-coin' : 
+                    tokenSymbol === 'USDT' ? 'tether' : 'stellar';
+      
+      const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd&include_24hr_change=true`);
+      const data = await response.json();
+      
+      if (data[symbol] && data[symbol].usd) {
+        const livePrice: OraclePrice = {
+          token: tokenSymbol,
+          price: data[symbol].usd.toString(),
+          timestamp: Date.now(),
+          decimals: 8
+        };
+        setCurrentPrice(livePrice);
+        console.log(`✅ Live Stellar ${tokenSymbol} price from CoinGecko: $${data[symbol].usd}`);
+        
+        toast({
+          title: "Live Price Updated",
+          description: `${tokenSymbol}: $${data[symbol].usd} from CoinGecko`,
+        });
+      } else {
+        throw new Error('Invalid response from CoinGecko');
+      }
+    } catch (error) {
+      console.error('Stellar price fetch error:', error);
+      throw error;
     }
   };
 
@@ -617,69 +563,125 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
 
   return (
     <div className="space-y-6">
-      {/* Price Oracle Section */}
+      {/* Live Price Feeds Section */}
       <Card className="p-6 bg-gradient-card border-neon-cyan/20">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-neon-green" />
-            {chains.find(c => c.id === selectedChain)?.icon || "🔵"} Live {chains.find(c => c.id === selectedChain)?.name || "Polygon"} Price Feeds
-          </h3>
-          <Badge variant="secondary">{chains.find(c => c.id === selectedChain)?.name || "Polygon"} Oracle</Badge>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-neon-cyan" />
+            <h3 className="text-lg font-semibold">
+              {chains.find(c => c.id === selectedChain)?.icon || "🔵"} Live {chains.find(c => c.id === selectedChain)?.name || "Polygon"} Price Feeds
+            </h3>
+            <Badge variant="outline" className="border-neon-cyan/40 text-neon-cyan">
+              {selectedChain === 'stellar' ? 'CoinGecko' : '1inch API'}
+            </Badge>
+          </div>
+          <Button
+            onClick={fetchCurrentPrice}
+            disabled={isLoading}
+            variant="outline"
+            size="sm"
+            className="border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/10"
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <TrendingUp className="w-4 h-4" />
+            )}
+            Refresh
+          </Button>
         </div>
-        
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <Select value={selectedChain} onValueChange={setSelectedChain}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {chains.map((chain) => (
-                  <SelectItem key={chain.id} value={chain.id}>
-                    <span className="flex items-center gap-2">
-                      <span>{chain.icon}</span>
-                      <span>{chain.name}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Token Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Select Token</label>
             <Select value={selectedToken} onValueChange={setSelectedToken}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="bg-background/50">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {tokens.map((token) => (
                   <SelectItem key={token.symbol} value={token.symbol}>
-                    {token.symbol}
+                    <div className="flex items-center gap-2">
+                      <span>{token.symbol}</span>
+                      <span className="text-xs text-muted-foreground">({token.name})</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={fetchCurrentPrice}
-              disabled={isLoading}
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
-            </Button>
           </div>
 
-          {currentPrice && (
-            <div className="bg-space-gray rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Current Price</span>
-                <span className="text-lg font-mono">${parseFloat(currentPrice.price).toFixed(2)}</span>
+          {/* Chain Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Select Chain</label>
+            <Select value={selectedChain} onValueChange={setSelectedChain}>
+              <SelectTrigger className="bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {chains.map((chain) => (
+                  <SelectItem key={chain.id} value={chain.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{chain.icon}</span>
+                      <span>{chain.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Current Price Display */}
+        {currentPrice && (
+          <div className="mt-6 p-4 bg-background/30 rounded-lg border border-neon-cyan/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-muted-foreground">Current Price</div>
+                <div className="text-2xl font-bold text-neon-cyan">
+                  ${parseFloat(currentPrice.price).toFixed(6)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Last updated: {new Date(currentPrice.timestamp).toLocaleTimeString()}
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                Last updated: {new Date(currentPrice.timestamp).toLocaleTimeString()}
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">Source</div>
+                <div className="text-sm font-medium text-green-500">
+                  {selectedChain === 'stellar' ? 'CoinGecko' : '1inch API'}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {selectedChain === 'stellar' ? 'Live' : 'Real-time'}
+                </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="mt-4 p-4 bg-background/30 rounded-lg border border-blue-500/20">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              <span className="text-sm text-blue-500">
+                Fetching live price from {selectedChain === 'stellar' ? 'CoinGecko' : '1inch API'}...
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {!currentPrice && !isLoading && (
+          <div className="mt-4 p-4 bg-background/30 rounded-lg border border-red-500/20">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+              <span className="text-sm text-red-500">
+                Failed to fetch live price. Click refresh to try again.
+              </span>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Swap Quote Section */}

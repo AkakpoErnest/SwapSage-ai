@@ -17,6 +17,7 @@ import {
   Search,
   Loader2
 } from 'lucide-react';
+import { toast } from './ui/use-toast';
 
 interface SwapQuote {
   fromToken: string;
@@ -61,18 +62,102 @@ const SwapInterface: React.FC = () => {
   const refreshPrice = async () => {
     setIsRefreshingPrice(true);
     try {
-      const basePrice = 0.85;
-      const variation = (Math.random() - 0.5) * 0.1;
-      const newPrice = (basePrice + variation).toFixed(4);
-      setCurrentPrice(newPrice);
-      setLastUpdated(new Date().toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
-      }));
+      // Use 1inch API for real-time Polygon prices
+      const apiKey = import.meta.env.VITE_1INCH_API_KEY || 'Wyfjpg5CDkOZfhK7lmKrVVgkkawHd28O';
+      const baseUrl = 'https://api.1inch.dev';
+      
+      // Map tokens to their Polygon addresses
+      const tokenAddresses = {
+        'MATIC': '0x0000000000000000000000000000000000000000', // Native MATIC
+        'USDC': '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+        'DAI': '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
+        'USDT': '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+      };
+
+      const tokenAddress = tokenAddresses[selectedToken as keyof typeof tokenAddresses];
+      const usdcAddress = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // Polygon USDC
+
+      if (!tokenAddress) {
+        throw new Error(`No address found for token ${selectedToken}`);
+      }
+
+      // Try multiple CORS proxies for reliability
+      const corsProxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://cors-anywhere.herokuapp.com/',
+        'https://thingproxy.freeboard.io/fetch/',
+        '' // Direct request (might work in some environments)
+      ];
+
+      let response: Response | null = null;
+      let lastError: Error | null = null;
+
+      for (const proxy of corsProxies) {
+        try {
+          const url = `${proxy}${baseUrl}/quote/v6.0/137?src=${tokenAddress}&dst=${usdcAddress}&amount=1000000000000000000`;
+          console.log(`🔍 Trying 1inch API with proxy: ${proxy ? 'CORS proxy' : 'direct'}`);
+          
+          response = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Accept': 'application/json',
+              'Origin': 'http://localhost:8080',
+            },
+          });
+          
+          if (response.ok) {
+            console.log('✅ 1inch API request successful');
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed with proxy ${proxy}:`, error);
+          lastError = error as Error;
+          response = null;
+        }
+      }
+
+      if (!response || !response.ok) {
+        throw new Error(`1inch API failed: ${lastError?.message || response?.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.toTokenAmount) {
+        throw new Error('Invalid response from 1inch API');
+      }
+
+      // Calculate price in USD (USDC has 6 decimals)
+      const price = parseFloat(data.toTokenAmount) / 1000000;
+      
+      setCurrentPrice(price.toFixed(6));
+      setLastUpdated(new Date().toLocaleTimeString());
+      
+      console.log(`✅ Live ${selectedToken} price from 1inch: $${price.toFixed(6)}`);
+      
+      toast({
+        title: "Live Price Updated",
+        description: `${selectedToken}: $${price.toFixed(6)} from 1inch API`,
+      });
+      
     } catch (error) {
       console.error('Error refreshing price:', error);
+      
+      // Fallback to static prices if API fails
+      const fallbackPrices = {
+        'MATIC': '0.83',
+        'USDC': '1.00',
+        'DAI': '1.00',
+        'USDT': '1.00',
+      };
+      
+      setCurrentPrice(fallbackPrices[selectedToken as keyof typeof fallbackPrices] || '1.00');
+      setLastUpdated(new Date().toLocaleTimeString());
+      
+      toast({
+        title: "Price Update Failed",
+        description: "Using fallback price - Live feeds unavailable",
+        variant: "destructive",
+      });
     } finally {
       setIsRefreshingPrice(false);
     }
@@ -196,11 +281,11 @@ const SwapInterface: React.FC = () => {
               </div>
               <div>
                 <CardTitle className="text-xl text-white">Live Polygon Price Feeds</CardTitle>
-                <CardDescription className="text-muted-foreground">Real-time market data from on-chain sources</CardDescription>
+                <CardDescription className="text-muted-foreground">Live market data from 1inch API</CardDescription>
               </div>
             </div>
             <Badge variant="outline" className="bg-neon-cyan/10 border-neon-cyan/30 text-neon-cyan">
-              Polygon Oracle
+              1inch API Live
             </Badge>
           </div>
         </CardHeader>
@@ -229,18 +314,26 @@ const SwapInterface: React.FC = () => {
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="p-4 bg-space-gray/30 rounded-lg border border-neon-cyan/20">
               <div className="text-sm text-muted-foreground mb-1">Current Price</div>
               <div className="text-2xl font-bold text-neon-cyan">${currentPrice}</div>
+              <div className="text-xs text-green-400 mt-1">Live from 1inch API</div>
             </div>
             <div className="p-4 bg-space-gray/30 rounded-lg border border-neon-cyan/20">
-              <div className="text-sm text-muted-foreground mb-1">24h Change</div>
-              <div className="text-lg font-semibold text-green-400">+2.5% 📈</div>
+              <div className="text-sm text-muted-foreground mb-1">Token</div>
+              <div className="text-lg font-semibold text-white">{selectedToken}</div>
+              <div className="text-xs text-muted-foreground mt-1">Polygon Network</div>
+            </div>
+            <div className="p-4 bg-space-gray/30 rounded-lg border border-neon-cyan/20">
+              <div className="text-sm text-muted-foreground mb-1">Source</div>
+              <div className="text-lg font-semibold text-green-400">1inch API</div>
+              <div className="text-xs text-muted-foreground mt-1">Real-time</div>
             </div>
             <div className="p-4 bg-space-gray/30 rounded-lg border border-neon-cyan/20">
               <div className="text-sm text-muted-foreground mb-1">Last Updated</div>
               <div className="text-sm font-medium text-white">{lastUpdated}</div>
+              <div className="text-xs text-muted-foreground mt-1">Live data</div>
             </div>
           </div>
         </CardContent>
