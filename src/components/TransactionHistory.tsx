@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   Activity, 
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import { useToast } from "@/hooks/use-toast";
+import { transactionFetcher } from "@/services/blockchain/transactionFetcher";
 
 interface Transaction {
   id: string;
@@ -94,26 +97,81 @@ const TransactionHistory = () => {
   ];
 
   const loadTransactionHistory = async () => {
+    if (!walletState.address) {
+      setTransactions([]);
+      setFilteredTransactions([]);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // In a real app, this would fetch from blockchain or API
-      // For now, we'll use sample data
-      const storedTransactions = localStorage.getItem(`transactions_${walletState.address}`);
-      let loadedTransactions: Transaction[] = [];
+      // Initialize providers for Polygon and Ethereum
+      await transactionFetcher.initializeProvider(137, 'https://polygon-rpc.com');
+      await transactionFetcher.initializeProvider(1, 'https://eth.llamarpc.com');
       
-      if (storedTransactions) {
-        loadedTransactions = JSON.parse(storedTransactions);
-      } else {
-        // Use sample data if no stored transactions
-        loadedTransactions = sampleTransactions;
-        localStorage.setItem(`transactions_${walletState.address}`, JSON.stringify(sampleTransactions));
-      }
+      // Fetch real on-chain transactions
+      const polygonTxs = await transactionFetcher.fetchTransactions(walletState.address, 137);
+      const ethereumTxs = await transactionFetcher.fetchTransactions(walletState.address, 1);
       
-      setTransactions(loadedTransactions);
-      setFilteredTransactions(loadedTransactions);
+      // Convert to our transaction format
+      const allTransactions: Transaction[] = [];
+      
+      // Process Polygon transactions
+      polygonTxs.forEach(tx => {
+        allTransactions.push({
+          id: tx.hash,
+          type: 'swap',
+          status: tx.status === 'success' ? 'completed' : 'failed',
+          fromToken: 'MATIC',
+          toToken: 'USDC',
+          fromAmount: ethers.formatEther(tx.value),
+          toAmount: '0', // Would need to parse logs for actual swap amounts
+          fromChain: 'polygon',
+          toChain: 'polygon',
+          recipient: tx.to,
+          timestamp: tx.timestamp * 1000,
+          txHash: tx.hash,
+          error: tx.error
+        });
+      });
+      
+      // Process Ethereum transactions
+      ethereumTxs.forEach(tx => {
+        allTransactions.push({
+          id: tx.hash,
+          type: 'bridge',
+          status: tx.status === 'success' ? 'completed' : 'failed',
+          fromToken: 'ETH',
+          toToken: 'XLM',
+          fromAmount: ethers.formatEther(tx.value),
+          toAmount: '0',
+          fromChain: 'ethereum',
+          toChain: 'stellar',
+          recipient: tx.to,
+          timestamp: tx.timestamp * 1000,
+          txHash: tx.hash,
+          error: tx.error
+        });
+      });
+      
+      // Sort by timestamp (newest first)
+      const sortedTransactions = allTransactions.sort((a, b) => b.timestamp - a.timestamp);
+      
+      setTransactions(sortedTransactions);
+      setFilteredTransactions(sortedTransactions);
+      
+      // Store in localStorage for caching
+      localStorage.setItem(`transactions_${walletState.address}`, JSON.stringify(sortedTransactions));
+      
     } catch (error) {
       console.error('Failed to load transaction history:', error);
-      // Fallback to sample data
+      toast({
+        title: "Error Loading Transactions",
+        description: "Failed to fetch on-chain transaction data. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Fallback to sample data if on-chain fetch fails
       setTransactions(sampleTransactions);
       setFilteredTransactions(sampleTransactions);
     } finally {
@@ -302,7 +360,7 @@ const TransactionHistory = () => {
           <div>
             <h3 className="text-xl font-semibold text-white mb-2">🟣⭐ Polygon-Stellar Transaction History</h3>
             <p className="text-muted-foreground mb-4">
-              Connect your wallet to view your cross-chain transaction history
+              Connect your wallet to view your on-chain transaction history
             </p>
             <div className="flex gap-2 justify-center">
               <Button 
@@ -357,9 +415,26 @@ const TransactionHistory = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">🟣⭐ Polygon-Stellar Transaction History</h2>
-          <p className="text-muted-foreground">View and manage your cross-chain swap and bridge transactions</p>
+          <p className="text-muted-foreground">
+            {isLoading ? 'Fetching on-chain transaction data...' : 'View and manage your cross-chain swap and bridge transactions'}
+          </p>
+          {walletState.address && (
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse"></div>
+              <span className="text-xs text-neon-green">Connected: {walletState.address.slice(0, 6)}...{walletState.address.slice(-4)}</span>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={loadTransactionHistory}
+            disabled={isLoading}
+            className="border-neon-green/40 text-neon-green hover:bg-neon-green/10"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'Loading...' : 'Refresh'}
+          </Button>
           <Button
             variant="outline"
             onClick={() => exportHistory('json')}

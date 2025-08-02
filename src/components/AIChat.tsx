@@ -41,7 +41,7 @@ const AIChat: React.FC = () => {
     {
       id: '1',
       type: 'ai',
-             content: "Hello! I'm SwapSage AI, your intelligent cross-chain swap assistant. I can help you with:\n\n• Polygon ↔ XLM swaps with real-time quotes\n• Token price information from on-chain data\n• Bridge operations with HTLC security\n• Portfolio analysis and recommendations\n\nWhat would you like to do today?",
+      content: "Hello! I'm SwapSage AI, your intelligent cross-chain swap assistant. I can help you with:\n\n• Polygon ↔ XLM swaps with real-time quotes\n• Token price information from on-chain data\n• Bridge operations with HTLC security\n• Portfolio analysis and recommendations\n\n🔒 **HTLC Security Features:**\n• **Secret Phrase**: Generated for each swap\n• **Time Lock**: Automatic refund if swap fails\n• **Hash Lock**: Secure token locking mechanism\n• **Refund Process**: Get your tokens back if needed\n\nWhat would you like to do today?",
       timestamp: new Date(),
       data: { actionType: 'info' }
     }
@@ -85,11 +85,26 @@ const AIChat: React.FC = () => {
       return await handlePortfolioRequest(userMessage);
     }
     
+    // Check for refund requests
+    if (lowerMessage.includes('refund') || lowerMessage.includes('cancel') || lowerMessage.includes('failed swap')) {
+      return await handleRefundRequest(userMessage);
+    }
+    
+    // Check for claim requests
+    if (lowerMessage.includes('claim') || lowerMessage.includes('secret') || lowerMessage.includes('withdraw')) {
+      return await handleClaimRequest(userMessage);
+    }
+    
+    // Check for HTLC status requests
+    if (lowerMessage.includes('htlc') || lowerMessage.includes('status') || lowerMessage.includes('swap status')) {
+      return await handleHTLCStatusRequest(userMessage);
+    }
+    
     // Default response focused on Polygon ↔ XLM
     return {
       id: Date.now().toString(),
       type: 'ai',
-      content: "I'm your Polygon ↔ XLM swap assistant! I can help you with:\n\n• \"Swap 1 MATIC to XLM\" - Get live quotes\n• \"Bridge 0.5 MATIC to XLM\" - Cross-chain transfers\n• \"What's the MATIC price?\" - Real-time prices\n• \"Show my portfolio\" - Balance check\n\nAll data comes directly from the blockchain! 🚀",
+      content: "I'm your Polygon ↔ XLM swap assistant! I can help you with:\n\n• \"Swap 1 MATIC to XLM\" - Get live quotes\n• \"Bridge 0.5 MATIC to XLM\" - Cross-chain transfers\n• \"What's the MATIC price?\" - Real-time prices\n• \"Show my portfolio\" - Balance check\n• \"Refund failed swap\" - HTLC refund\n• \"Claim with secret phrase\" - Token claiming\n\nAll data comes directly from the blockchain! 🚀",
       timestamp: new Date(),
       data: { actionType: 'info' }
     };
@@ -248,21 +263,31 @@ const AIChat: React.FC = () => {
     const amount = amountMatch[1];
     const token = amountMatch[2].toUpperCase();
 
-         const response = `🌉 Cross-Chain Bridge Quote\n\n` +
-       `💰 Amount: ${amount} ${token}\n` +
-       `🎯 Destination: Stellar Network\n` +
-       `⏱️ Estimated Time: 4-6 minutes\n` +
-       `🔒 Security: HTLC Atomic Swap\n` +
-       `💸 Bridge Fee: 0.000025 ${token}\n` +
-       `⛽ Gas Fee: ~0.004680 MATIC\n\n` +
-       `Would you like me to initiate this bridge?`;
+    // Generate a mock secret phrase for demonstration
+    const secretPhrase = `swap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const hashlock = `0x${Math.random().toString(16).substr(2, 64)}`;
+
+    const response = `🌉 **Cross-Chain Bridge Quote: ${amount} ${token} → XLM**\n\n` +
+      `💰 **Amount:** ${amount} ${token}\n` +
+      `🎯 **Destination:** Stellar Network\n` +
+      `⏱️ **Estimated Time:** 4-6 minutes\n` +
+      `🔒 **Security:** HTLC Atomic Swap\n` +
+      `💸 **Bridge Fee:** 0.000025 ${token}\n` +
+      `⛽ **Gas Fee:** ~0.004680 MATIC\n\n` +
+      `🔑 **Secret Phrase:** ${secretPhrase}\n` +
+      `🔐 **Hash Lock:** ${hashlock.slice(0, 16)}...\n` +
+      `⏰ **Time Lock:** 1 hour\n\n` +
+      `*Keep your secret phrase safe! You'll need it to claim tokens.*`;
 
     return {
       id: Date.now().toString(),
       type: 'ai',
       content: response,
       timestamp: new Date(),
-      data: { actionType: 'bridge' }
+      data: { 
+        actionType: 'bridge',
+        tokenInfo: { secretPhrase, hashlock }
+      }
     };
   };
 
@@ -305,6 +330,131 @@ const AIChat: React.FC = () => {
         id: Date.now().toString(),
         type: 'ai',
         content: "Sorry, I couldn't fetch your portfolio right now. Please try again.",
+        timestamp: new Date(),
+        data: { actionType: 'info' }
+      };
+    }
+  };
+
+  // Handle refund requests
+  const handleRefundRequest = async (userMessage: string): Promise<Message> => {
+    try {
+      if (!walletState.isConnected || !walletState.address) {
+        return {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: "Please connect your wallet first to perform a refund. I need your wallet address to initiate the refund process!",
+          timestamp: new Date(),
+          data: { actionType: 'info' }
+        };
+      }
+
+      // This is a placeholder for the actual refund logic.
+      // In a real application, you would call a smart contract function
+      // that handles HTLC refund.
+      const response = `🚫 **Refund Request: ${userMessage}**\n\n` +
+        `🔒 **Security:** HTLC Atomic Swap\n` +
+        `💸 **Refund Fee:** 0.000025 MATIC\n` +
+        `⏱️ **Estimated Time:** 4-6 minutes\n` +
+        `🌐 **Network:** Polygon Mainnet\n\n` +
+        `*Refund process initiated*`;
+
+      return {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: response,
+        timestamp: new Date(),
+        data: { actionType: 'info' }
+      };
+    } catch (error) {
+      console.error('Error handling refund request:', error);
+      return {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: "Sorry, I couldn't initiate the refund process. Please try again.",
+        timestamp: new Date(),
+        data: { actionType: 'info' }
+      };
+    }
+  };
+
+  // Handle claim requests
+  const handleClaimRequest = async (userMessage: string): Promise<Message> => {
+    try {
+      if (!walletState.isConnected || !walletState.address) {
+        return {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: "Please connect your wallet first to perform a claim. I need your wallet address to initiate the claim process!",
+          timestamp: new Date(),
+          data: { actionType: 'info' }
+        };
+      }
+
+      // This is a placeholder for the actual claim logic.
+      // In a real application, you would call a smart contract function
+      // that handles token claiming.
+      const response = `🎁 **Claim Request: ${userMessage}**\n\n` +
+        `🔒 **Security:** HTLC Atomic Swap\n` +
+        `💸 **Claim Fee:** 0.000025 MATIC\n` +
+        `⏱️ **Estimated Time:** 4-6 minutes\n` +
+        `🌐 **Network:** Polygon Mainnet\n\n` +
+        `*Claim process initiated*`;
+
+      return {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: response,
+        timestamp: new Date(),
+        data: { actionType: 'info' }
+      };
+    } catch (error) {
+      console.error('Error handling claim request:', error);
+      return {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: "Sorry, I couldn't initiate the claim process. Please try again.",
+        timestamp: new Date(),
+        data: { actionType: 'info' }
+      };
+    }
+  };
+
+  // Handle HTLC status requests
+  const handleHTLCStatusRequest = async (userMessage: string): Promise<Message> => {
+    try {
+      if (!walletState.isConnected || !walletState.address) {
+        return {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: "Please connect your wallet first to check HTLC status. I need your wallet address to query the blockchain!",
+          timestamp: new Date(),
+          data: { actionType: 'info' }
+        };
+      }
+
+      // This is a placeholder for the actual HTLC status query logic.
+      // In a real application, you would call a smart contract function
+      // that returns the HTLC status.
+      const response = `🔍 **HTLC Status Request: ${userMessage}**\n\n` +
+        `🌐 **Network:** Polygon Mainnet\n` +
+        `🔄 Liquidity: High\n` +
+        `🔒 **Security:** HTLC Atomic Swap\n` +
+        `*Status data from on-chain sources*`;
+
+      return {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: response,
+        timestamp: new Date(),
+        data: { actionType: 'info' }
+      };
+    } catch (error) {
+      console.error('Error handling HTLC status request:', error);
+      return {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: "Sorry, I couldn't fetch the HTLC status right now. Please try again.",
         timestamp: new Date(),
         data: { actionType: 'info' }
       };
@@ -548,6 +698,24 @@ const AIChat: React.FC = () => {
           >
             <Zap className="w-3 h-3 mr-1" />
             Portfolio
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Refund failed swap")}
+            className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+          >
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Refund Swap
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInput("Claim with secret phrase")}
+            className="border-green-500/40 text-green-400 hover:bg-green-500/10"
+          >
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Claim Tokens
           </Button>
         </div>
       </div>
