@@ -172,9 +172,55 @@ User locks funds → Secret revealed → Funds unlocked
 - **Gas Estimation**: Real-time Ethereum gas costs
 - **Network Status**: Chain health monitoring
 
-## 🧪 Testing
+## 🚧 Challenges Faced & Solutions
 
-### **Smart Contracts**
+### **Major Challenge: 1inch API Testnet Limitations**
+
+**The Problem:**
+- **1inch API doesn't support testnets** (Sepolia, Goerli, Mumbai)
+- **Real swap quotes require mainnet deployment**
+- **Development was blocked** without real API functionality
+- **Demo mode only** available on testnets
+
+**Our Solution:**
+1. **Implemented fallback demo mode** for testnet development
+2. **Created cost-effective deployment options**:
+   - **Polygon deployment** ($0.01-0.05) for full functionality
+   - **Single contract deployment** ($50-100) for Ethereum mainnet
+   - **Testnet deployment** (free) for development
+3. **Enhanced error handling** with graceful degradation
+4. **Added network detection** for automatic fallback
+
+### **Technical Challenges Overcome:**
+
+#### **1. Cross-Chain Swap Failures**
+- **Issue:** Same-token swaps causing API errors
+- **Solution:** Added validation to prevent invalid swap attempts
+- **Result:** Clear error messages and helpful user guidance
+
+#### **2. Token Display Issues**
+- **Issue:** Sepolia ETH not showing in token dropdown
+- **Solution:** Fixed token address mapping and dynamic loading
+- **Result:** Proper token display across all networks
+
+#### **3. Network Detection**
+- **Issue:** Hardcoded chain IDs causing deployment issues
+- **Solution:** Implemented dynamic network detection
+- **Result:** Automatic token reloading when networks change
+
+#### **4. Cost Optimization**
+- **Issue:** High Ethereum mainnet deployment costs ($200-500)
+- **Solution:** Created multiple deployment strategies
+- **Result:** Options from free (testnet) to $0.05 (Polygon) to $50-100 (single contract)
+
+### **Deployment Strategy:**
+```
+Phase 1: Testnet (Free) → Development & Testing
+Phase 2: Polygon ($0.05) → Full functionality with real tokens
+Phase 3: Ethereum ($50-500) → Maximum security when budget allows
+```
+
+## 🧪 Testing
 ```bash
 # Run contract tests
 npm run test
@@ -197,6 +243,38 @@ npm run build
 # Preview production build
 npm run preview
 ```
+
+## 🚀 Deployment Options
+
+### **Option 1: Polygon (Recommended - $0.05)**
+```bash
+# Deploy to Polygon for full functionality
+npx hardhat run scripts/deploy-polygon.js --network polygon
+```
+
+### **Option 2: Single Contract (Ethereum - $50-100)**
+```bash
+# Deploy single contract to Ethereum mainnet
+npx hardhat run scripts/deploy-single-mainnet.js --network mainnet
+```
+
+### **Option 3: Full Ethereum ($200-500)**
+```bash
+# Deploy all contracts to Ethereum mainnet
+npx hardhat run scripts/deploy-mainnet.js --network mainnet
+```
+
+### **Option 4: Testnet (Free)**
+```bash
+# Deploy to Sepolia testnet for development
+npx hardhat run scripts/deploy-testnet.js --network sepolia
+```
+
+**📊 Cost Comparison:**
+- **Polygon:** $0.01-0.05 (Full functionality)
+- **Single Contract:** $50-100 (Basic Ethereum mainnet)
+- **Full Ethereum:** $200-500 (Maximum security)
+- **Testnet:** Free (Development only)
 
 ### **Cross-Chain Testing**
 - **Testnet Support**: Sepolia and Stellar Testnet
