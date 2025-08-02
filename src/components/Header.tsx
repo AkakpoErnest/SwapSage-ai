@@ -162,15 +162,50 @@ const Header: React.FC = () => {
 
         {/* Navigation */}
         <nav className="hidden md:flex items-center space-x-6">
-          <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex items-center space-x-2"
+            onClick={() => {
+              // Scroll to main interface and switch to swap tab
+              const mainSection = document.querySelector('[data-section="main-interface"]');
+              if (mainSection) {
+                mainSection.scrollIntoView({ behavior: 'smooth' });
+              }
+              // Dispatch custom event to switch tabs
+              window.dispatchEvent(new CustomEvent('switchTab', { detail: 'swap' }));
+            }}
+          >
             <Coins className="h-4 w-4" />
             <span>Swap</span>
           </Button>
-          <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex items-center space-x-2"
+            onClick={() => {
+              const mainSection = document.querySelector('[data-section="main-interface"]');
+              if (mainSection) {
+                mainSection.scrollIntoView({ behavior: 'smooth' });
+              }
+              window.dispatchEvent(new CustomEvent('switchTab', { detail: 'bridge' }));
+            }}
+          >
             <Network className="h-4 w-4" />
             <span>Networks</span>
           </Button>
-          <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex items-center space-x-2"
+            onClick={() => {
+              const mainSection = document.querySelector('[data-section="main-interface"]');
+              if (mainSection) {
+                mainSection.scrollIntoView({ behavior: 'smooth' });
+              }
+              window.dispatchEvent(new CustomEvent('switchTab', { detail: 'history' }));
+            }}
+          >
             <Activity className="h-4 w-4" />
             <span>Activity</span>
           </Button>

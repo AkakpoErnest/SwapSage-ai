@@ -12,9 +12,7 @@ import { crossChainBridge, CrossChainSwapRequest, SwapStatus } from '../services
 import { stellarService } from '../services/stellar/stellarService';
 import { ArrowRight, RefreshCw, AlertCircle, CheckCircle, Clock, X } from 'lucide-react';
 
-interface SwapInterfaceProps {}
-
-const SwapInterface: React.FC<SwapInterfaceProps> = () => {
+const SwapInterface: React.FC = () => {
   const { walletState } = useWalletContext();
   const [fromToken, setFromToken] = useState<string>('');
   const [toToken, setToToken] = useState<string>('');
@@ -28,6 +26,44 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
   const [error, setError] = useState<string>('');
   const [activeSwaps, setActiveSwaps] = useState<SwapStatus[]>([]);
   const [slippage, setSlippage] = useState<number>(1);
+
+  // Enhanced token selection with error handling
+  const handleTokenChange = (tokenAddress: string, type: 'from' | 'to') => {
+    try {
+      if (type === 'from') {
+        setFromToken(tokenAddress);
+        // Reset to token if it's the same as the new from token
+        if (toToken === tokenAddress) {
+          setToToken('');
+        }
+      } else {
+        setToToken(tokenAddress);
+      }
+      setError(''); // Clear any previous errors
+    } catch (error) {
+      console.error('Token selection error:', error);
+      setError('Failed to select token. Please try again.');
+    }
+  };
+
+  // Enhanced chain selection with validation
+  const handleChainChange = (chainId: 'ethereum' | 'polygon' | 'stellar', type: 'from' | 'to') => {
+    try {
+      if (type === 'from') {
+        setFromChain(chainId);
+        // Reset tokens when chain changes
+        setFromToken('');
+        setToToken('');
+      } else {
+        setToChain(chainId);
+        setToToken('');
+      }
+      setError(''); // Clear any previous errors
+    } catch (error) {
+      console.error('Chain selection error:', error);
+      setError('Failed to select chain. Please try again.');
+    }
+  };
 
   // Available tokens for each chain (updated for Polygon mainnet)
   const availableTokens = {
@@ -490,7 +526,7 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">From Chain</label>
-              <Select value={fromChain} onValueChange={(value: 'ethereum' | 'polygon' | 'stellar') => setFromChain(value)}>
+              <Select value={fromChain} onValueChange={(value: 'ethereum' | 'polygon' | 'stellar') => handleChainChange(value, 'from')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -503,7 +539,7 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">To Chain</label>
-              <Select value={toChain} onValueChange={(value: 'ethereum' | 'polygon' | 'stellar') => setToChain(value)}>
+              <Select value={toChain} onValueChange={(value: 'ethereum' | 'polygon' | 'stellar') => handleChainChange(value, 'to')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -520,7 +556,7 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">From Token</label>
-              <Select value={fromToken} onValueChange={setFromToken}>
+              <Select value={fromToken} onValueChange={(value) => handleTokenChange(value, 'from')}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>
@@ -542,7 +578,7 @@ const SwapInterface: React.FC<SwapInterfaceProps> = () => {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">To Token</label>
-              <Select value={toToken} onValueChange={setToToken}>
+              <Select value={toToken} onValueChange={(value) => handleTokenChange(value, 'to')}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>

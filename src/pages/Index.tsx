@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,19 @@ import { useWalletContext } from "@/contexts/WalletContext";
 const Index = () => {
   const [activeTab, setActiveTab] = useState("swap");
   const { walletState } = useWalletContext();
+
+  // Listen for tab switch events from header navigation
+  useEffect(() => {
+    const handleTabSwitch = (event: CustomEvent) => {
+      setActiveTab(event.detail);
+    };
+
+    window.addEventListener('switchTab', handleTabSwitch as EventListener);
+    
+    return () => {
+      window.removeEventListener('switchTab', handleTabSwitch as EventListener);
+    };
+  }, []);
 
   const tabs = [
     { id: "swap", label: "Swap", icon: Coins },
@@ -92,14 +105,28 @@ const Index = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
-              onClick={() => setActiveTab("swap")}
+              onClick={() => {
+                setActiveTab("swap");
+                // Scroll to main interface section
+                const mainSection = document.querySelector('[data-section="main-interface"]');
+                if (mainSection) {
+                  mainSection.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
               className="bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30 px-8 py-3 text-lg"
             >
               Start Swapping
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
             <Button 
-              onClick={() => setActiveTab("ai")}
+              onClick={() => {
+                setActiveTab("ai");
+                // Scroll to main interface section
+                const mainSection = document.querySelector('[data-section="main-interface"]');
+                if (mainSection) {
+                  mainSection.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
               variant="outline"
               className="border-neon-purple/40 text-neon-purple hover:bg-neon-purple/10 px-8 py-3 text-lg"
             >
@@ -136,7 +163,14 @@ const Index = () => {
                   <p className="text-neon-cyan font-medium">"I want to swap 1 ETH to USDC"</p>
                 </div>
                 <Button 
-                  onClick={() => setActiveTab("ai")}
+                  onClick={() => {
+                    setActiveTab("ai");
+                    // Scroll to main interface section
+                    const mainSection = document.querySelector('[data-section="main-interface"]');
+                    if (mainSection) {
+                      mainSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
                   className="bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
                 >
                   Start AI Chat
@@ -178,7 +212,7 @@ const Index = () => {
       </section>
 
       {/* Main Application Interface */}
-      <section className="py-12 px-4">
+      <section className="py-12 px-4" data-section="main-interface">
         <div className="container mx-auto">
           {/* Tab Navigation */}
           <div className="flex flex-wrap justify-center gap-3 mb-8">
