@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,19 @@ import { useWalletContext } from "@/contexts/WalletContext";
 const Index = () => {
   const [activeTab, setActiveTab] = useState("swap");
   const { walletState } = useWalletContext();
+
+  // Listen for tab switch events from header navigation
+  useEffect(() => {
+    const handleTabSwitch = (event: CustomEvent) => {
+      setActiveTab(event.detail);
+    };
+
+    window.addEventListener('switchTab', handleTabSwitch as EventListener);
+    
+    return () => {
+      window.removeEventListener('switchTab', handleTabSwitch as EventListener);
+    };
+  }, []);
 
   const tabs = [
     { id: "swap", label: "Swap", icon: Coins },
@@ -178,7 +191,7 @@ const Index = () => {
       </section>
 
       {/* Main Application Interface */}
-      <section className="py-12 px-4">
+      <section className="py-12 px-4" data-section="main-interface">
         <div className="container mx-auto">
           {/* Tab Navigation */}
           <div className="flex flex-wrap justify-center gap-3 mb-8">
