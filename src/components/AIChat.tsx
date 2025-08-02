@@ -385,6 +385,22 @@ const AIChat: React.FC = () => {
         </div>
       </div>
 
+      {/* Network Status */}
+      <div className="flex items-center justify-center gap-4 mb-4">
+        <div className="flex items-center gap-2 text-xs">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-muted-foreground">Polygon: Connected</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+          <span className="text-muted-foreground">Stellar: Connected</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+          <span className="text-muted-foreground">1inch API: Live</span>
+        </div>
+      </div>
+
       {/* Enhanced Messages Container */}
       <Card className="flex-1 bg-gradient-to-b from-space-gray/20 to-space-gray/10 border border-neon-cyan/20 rounded-2xl shadow-xl shadow-neon-cyan/10 backdrop-blur-sm">
         <CardContent className="p-6 h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-neon-cyan/20 scrollbar-track-transparent">

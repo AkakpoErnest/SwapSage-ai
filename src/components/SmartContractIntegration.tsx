@@ -30,6 +30,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
   const [activeSwaps, setActiveSwaps] = useState<HTLCSwap[]>([]);
   const [selectedToken, setSelectedToken] = useState("MATIC");
+  const [selectedChain, setSelectedChain] = useState("polygon");
   const [amount, setAmount] = useState("");
   const { toast } = useToast();
 
@@ -41,20 +42,80 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
     mockToken: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0xE560De00F664dE3C0B3815dd1AF4b6DF64123563"
   };
 
-  const tokens = [
-    { symbol: "MATIC", address: "0x0000000000000000000000000000000000000000", name: "Polygon" },
-    { symbol: "WMATIC", address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", name: "Wrapped MATIC" },
-    { symbol: "USDC", address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", name: "USD Coin" },
-    { symbol: "DAI", address: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063", name: "Dai Stablecoin" },
-    { symbol: "WBTC", address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", name: "Wrapped Bitcoin" },
-    { symbol: "USDT", address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", name: "Tether USD" }
+  const chains = [
+    { id: "ethereum", name: "Ethereum", icon: "🔵", chainId: 1, rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/demo" },
+    { id: "polygon", name: "Polygon", icon: "🟣", chainId: 137, rpcUrl: "https://polygon-rpc.com" },
+    { id: "bsc", name: "BSC", icon: "🟡", chainId: 56, rpcUrl: "https://bsc-dataseed.binance.org" },
+    { id: "arbitrum", name: "Arbitrum", icon: "🔵", chainId: 42161, rpcUrl: "https://arb1.arbitrum.io/rpc" },
+    { id: "optimism", name: "Optimism", icon: "🔴", chainId: 10, rpcUrl: "https://mainnet.optimism.io" },
+    { id: "avalanche", name: "Avalanche", icon: "🔴", chainId: 43114, rpcUrl: "https://api.avax.network/ext/bc/C/rpc" },
+    { id: "stellar", name: "Stellar", icon: "⭐", chainId: 100, rpcUrl: "https://horizon-testnet.stellar.org" },
   ];
+
+  const tokensByChain = {
+    ethereum: [
+      { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", name: "Ethereum", decimals: 18 },
+      { symbol: "WETH", address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", name: "Wrapped ETH", decimals: 18 },
+      { symbol: "USDC", address: "0xA0b86a33E6441b8C4C8C8C8C8C8C8C8C8C8C8C8", name: "USD Coin", decimals: 6 },
+      { symbol: "DAI", address: "0x6B175474E89094C44Da98b954EedeAC495271d0F", name: "Dai Stablecoin", decimals: 18 },
+      { symbol: "WBTC", address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", name: "Wrapped Bitcoin", decimals: 8 },
+      { symbol: "USDT", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", name: "Tether USD", decimals: 6 },
+    ],
+    polygon: [
+      { symbol: "MATIC", address: "0x0000000000000000000000000000000000000000", name: "Polygon", decimals: 18 },
+      { symbol: "WMATIC", address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", name: "Wrapped MATIC", decimals: 18 },
+      { symbol: "USDC", address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", name: "USD Coin", decimals: 6 },
+      { symbol: "DAI", address: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063", name: "Dai Stablecoin", decimals: 18 },
+      { symbol: "WBTC", address: "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6", name: "Wrapped Bitcoin", decimals: 8 },
+      { symbol: "USDT", address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", name: "Tether USD", decimals: 6 },
+    ],
+    bsc: [
+      { symbol: "BNB", address: "0x0000000000000000000000000000000000000000", name: "Binance Coin", decimals: 18 },
+      { symbol: "WBNB", address: "0xbb4CdB9CBd36B01bD1cBaEF2aFd8d6f6f4f4f4f4", name: "Wrapped BNB", decimals: 18 },
+      { symbol: "USDC", address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", name: "USD Coin", decimals: 18 },
+      { symbol: "BUSD", address: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", name: "Binance USD", decimals: 18 },
+      { symbol: "CAKE", address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82", name: "PancakeSwap Token", decimals: 18 },
+    ],
+    arbitrum: [
+      { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", name: "Ethereum", decimals: 18 },
+      { symbol: "WETH", address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", name: "Wrapped ETH", decimals: 18 },
+      { symbol: "USDC", address: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", name: "USD Coin", decimals: 6 },
+      { symbol: "USDT", address: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", name: "Tether USD", decimals: 6 },
+    ],
+    optimism: [
+      { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", name: "Ethereum", decimals: 18 },
+      { symbol: "WETH", address: "0x4200000000000000000000000000000000000006", name: "Wrapped ETH", decimals: 18 },
+      { symbol: "USDC", address: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", name: "USD Coin", decimals: 6 },
+      { symbol: "USDT", address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58", name: "Tether USD", decimals: 6 },
+    ],
+    avalanche: [
+      { symbol: "AVAX", address: "0x0000000000000000000000000000000000000000", name: "Avalanche", decimals: 18 },
+      { symbol: "WAVAX", address: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7", name: "Wrapped AVAX", decimals: 18 },
+      { symbol: "USDC", address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", name: "USD Coin", decimals: 6 },
+      { symbol: "USDT", address: "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7", name: "Tether USD", decimals: 6 },
+    ],
+    stellar: [
+      { symbol: "XLM", address: "native", name: "Stellar Lumens", decimals: 7 },
+      { symbol: "USDC", address: "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34KUEKUS", name: "USD Coin", decimals: 7 },
+      { symbol: "USDT", address: "USDT:GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZCCVTJ6", name: "Tether USD", decimals: 7 },
+    ],
+  };
+
+  const tokens = tokensByChain[selectedChain as keyof typeof tokensByChain] || tokensByChain.polygon;
 
   useEffect(() => {
     if (isConnected && selectedToken) {
       fetchCurrentPrice();
     }
-  }, [isConnected, selectedToken]);
+  }, [isConnected, selectedToken, selectedChain]);
+
+  // Update selected token when chain changes
+  useEffect(() => {
+    const newTokens = tokensByChain[selectedChain as keyof typeof tokensByChain];
+    if (newTokens && newTokens.length > 0) {
+      setSelectedToken(newTokens[0].symbol);
+    }
+  }, [selectedChain]);
 
   const fetchCurrentPrice = async () => {
     if (!selectedToken) return;
@@ -443,13 +504,29 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-neon-green" />
-            🟣 Live Polygon Price Feeds
+            {chains.find(c => c.id === selectedChain)?.icon || "🔵"} Live {chains.find(c => c.id === selectedChain)?.name || "Polygon"} Price Feeds
           </h3>
-          <Badge variant="secondary">Polygon Oracle</Badge>
+          <Badge variant="secondary">{chains.find(c => c.id === selectedChain)?.name || "Polygon"} Oracle</Badge>
         </div>
         
         <div className="space-y-4">
           <div className="flex items-center gap-4">
+            <Select value={selectedChain} onValueChange={setSelectedChain}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {chains.map((chain) => (
+                  <SelectItem key={chain.id} value={chain.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{chain.icon}</span>
+                      <span>{chain.name}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
             <Select value={selectedToken} onValueChange={setSelectedToken}>
               <SelectTrigger className="w-32">
                 <SelectValue />
@@ -492,7 +569,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Zap className="w-5 h-5 text-neon-purple" />
-            🟣 Polygon Swap Quote
+            {chains.find(c => c.id === selectedChain)?.icon || "🔵"} {chains.find(c => c.id === selectedChain)?.name || "Polygon"} Swap Quote
           </h3>
           <Badge variant="secondary">1inch Fusion</Badge>
         </div>

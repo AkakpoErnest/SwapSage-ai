@@ -16,7 +16,7 @@ import {
   AlertCircle,
   BarChart3
 } from "lucide-react";
-import SwapInterface from "@/components/SwapInterface";
+import EnhancedSwapInterface from "@/components/EnhancedSwapInterface";
 import AIChat from "@/components/AIChat";
 import Dashboard from "@/components/Dashboard";
 import SmartContractIntegration from "@/components/SmartContractIntegration";
@@ -58,7 +58,7 @@ const Index = () => {
   const renderContent = () => {
     switch (activeTab) {
       case "swap":
-        return <SwapInterface />;
+        return <EnhancedSwapInterface />;
       case "bridge":
         return <BridgeInterface />;
       case "history":
@@ -94,7 +94,7 @@ const Index = () => {
       case "ai":
         return <AIChat />;
       default:
-        return <SwapInterface />;
+        return <EnhancedSwapInterface />;
     }
   };
 
