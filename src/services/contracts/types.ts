@@ -92,14 +92,15 @@ export interface OraclePrice {
 }
 
 export interface HTLCSwap {
-  swapId: string;
-  initiator: string;
-  recipient: string;
-  token: string;
-  amount: string;
+  id: string;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  toAmount: string;
   hashlock: string;
   timelock: number;
-  withdrawn: boolean;
-  refunded: boolean;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
   secret: string;
+  txHash: string;
+  createdAt: number;
 } 

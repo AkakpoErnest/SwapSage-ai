@@ -2,8 +2,8 @@ import { ethers } from 'ethers';
 import { oneInchAPI } from '../api/oneinch';
 
 export interface CrossChainSwapRequest {
-  fromChain: 'ethereum' | 'stellar';
-  toChain: 'ethereum' | 'stellar';
+  fromChain: 'polygon' | 'stellar';
+  toChain: 'polygon' | 'stellar';
   fromToken: string;
   toToken: string;
   amount: string;
@@ -58,9 +58,9 @@ class CrossChainBridge {
   }
 
   /**
-   * Initiate a cross-chain swap from Ethereum to Stellar (Demo Version)
+   * Initiate a cross-chain swap from Polygon to Stellar (Demo Version)
    */
-  async initiateEthereumToStellarSwap(request: CrossChainSwapRequest): Promise<SwapStatus> {
+  async initiatePolygonToStellarSwap(request: CrossChainSwapRequest): Promise<SwapStatus> {
     try {
       if (!this.ethereumProvider) {
         throw new Error('Ethereum provider not initialized');
@@ -112,7 +112,7 @@ class CrossChainBridge {
         this.simulateStellarSwap(swapId);
       }, 2000);
 
-      console.log('🎯 Ethereum to Stellar swap initiated (Demo):', swapStatus);
+      console.log('🎯 Polygon to Stellar swap initiated (Demo):', swapStatus);
       return swapStatus;
 
     } catch (error) {
@@ -122,9 +122,9 @@ class CrossChainBridge {
   }
 
   /**
-   * Initiate a cross-chain swap from Stellar to Ethereum (Demo Version)
+   * Initiate a cross-chain swap from Stellar to Polygon (Demo Version)
    */
-  async initiateStellarToEthereumSwap(request: CrossChainSwapRequest): Promise<SwapStatus> {
+  async initiateStellarToPolygonSwap(request: CrossChainSwapRequest): Promise<SwapStatus> {
     try {
       // Generate secret and hashlock for atomic swap
       const secret = this.generateSecret();
@@ -168,7 +168,7 @@ class CrossChainBridge {
         this.simulateEthereumSwap(swapId);
       }, 2000);
 
-      console.log('🎯 Stellar to Ethereum swap initiated (Demo):', swapStatus);
+      console.log('🎯 Stellar to Polygon swap initiated (Demo):', swapStatus);
       return swapStatus;
 
     } catch (error) {

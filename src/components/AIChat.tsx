@@ -1,21 +1,59 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Send, Sparkles, Bot, User, CheckCircle, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { 
+  Send, 
+  Sparkles, 
+  Bot, 
+  User, 
+  CheckCircle, 
+  AlertCircle, 
+  RefreshCw,
+  Zap,
+  Globe,
+  Settings,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
+  MessageSquare,
+  ArrowUp,
+  Loader2
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { swapParser, type ParsedSwapCommand } from '@/services/ai/swapParser';
 import { huggingFaceService, type HuggingFaceResponse } from '@/services/ai/huggingFaceService';
+import { useWalletContext } from '@/contexts/WalletContext';
 
 interface Message {
   id: string;
-  type: 'user' | 'ai';
+  type: 'user' | 'ai' | 'system';
   content: string;
   timestamp: Date;
   parsedCommand?: ParsedSwapCommand;
   confidence?: number;
   language?: string;
   aiResponse?: HuggingFaceResponse;
+  reactions?: {
+    thumbsUp: boolean;
+    thumbsDown: boolean;
+  };
+  isTyping?: boolean;
+  error?: string;
+}
+
+interface QuickAction {
+  id: string;
+  label: string;
+  command: string;
+  icon: React.ComponentType<{ className?: string }>;
+  category: 'swap' | 'bridge' | 'quote' | 'portfolio';
 }
 
 const AIChat = () => {
@@ -23,18 +61,91 @@ const AIChat = () => {
     {
       id: '1',
       type: 'ai',
-      content: `🤖 Welcome to SwapSage AI Oracle!\n\nI'm your intelligent DeFi assistant. I can help you with:\n\n💱 Swaps: "I want to swap 1 ETH to USDC"\n🌉 Cross-chain: "Bridge 100 USDC to Stellar"\n📊 Quotes: "What's the current price of ETH?"\n💰 Portfolio: "Show me my balances"\n\nJust tell me what you want to do in natural language!`,
+      content: `🤖 **Welcome to SwapSage AI Oracle!**
+
+I'm your intelligent DeFi assistant powered by advanced AI. I can help you with:
+
+💱 **Swaps**: "I want to swap 1 ETH to USDC"
+🌉 **Cross-chain**: "Bridge 100 USDC to Stellar"  
+📊 **Quotes**: "What's the current price of ETH?"
+💰 **Portfolio**: "Show me my balances"
+
+🌍 **Multi-language Support**: English, Spanish, French, Japanese, Chinese
+
+Just tell me what you want to do in natural language!`,
       timestamp: new Date(),
-      language: 'English'
+      language: 'English',
+      confidence: 100
     }
   ]);
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(true);
+  const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { walletState } = useWalletContext();
+
+  // Quick action buttons
+  const quickActions: QuickAction[] = [
+    {
+      id: 'swap-eth-usdc',
+      label: 'Swap ETH → USDC',
+      command: 'I want to swap 1 ETH to USDC',
+      icon: Zap,
+      category: 'swap'
+    },
+    {
+      id: 'bridge-usdc-stellar',
+      label: 'Bridge USDC → Stellar',
+      command: 'Bridge 100 USDC to Stellar',
+      icon: Globe,
+      category: 'bridge'
+    },
+    {
+      id: 'get-eth-price',
+      label: 'Get ETH Price',
+      command: 'What is the current price of ETH?',
+      icon: MessageSquare,
+      category: 'quote'
+    },
+    {
+      id: 'show-balances',
+      label: 'Show Balances',
+      command: 'Show me my wallet balances',
+      icon: CheckCircle,
+      category: 'portfolio'
+    }
+  ];
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  // Typing indicator effect
+  useEffect(() => {
+    if (isTyping) {
+      const timer = setTimeout(() => {
+        setIsTyping(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isTyping]);
+
+  const handleQuickAction = (action: QuickAction) => {
+    setInput(action.command);
+    handleSubmit(new Event('submit') as any);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isProcessing) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -47,6 +158,7 @@ const AIChat = () => {
     const userInput = input;
     setInput("");
     setIsProcessing(true);
+    setIsTyping(true);
 
     try {
       // Try Hugging Face AI first, then fallback to local parser
@@ -68,7 +180,8 @@ const AIChat = () => {
           parsedCommand: huggingFaceResponse.parsedCommand,
           confidence: huggingFaceResponse.confidence,
           language: huggingFaceResponse.language,
-          aiResponse: huggingFaceResponse
+          aiResponse: huggingFaceResponse,
+          reactions: { thumbsUp: false, thumbsDown: false }
         };
 
         setMessages(prev => [...prev, messageResponse]);
@@ -80,9 +193,18 @@ const AIChat = () => {
             const quoteMessage: Message = {
               id: (Date.now() + 2).toString(),
               type: 'ai',
-              content: `✅ Route Found!\n\n💰 Estimated Output: ~${estimatedAmount.toFixed(4)} ${huggingFaceResponse.parsedCommand?.toToken}\n🔄 Path: Ethereum → 1inch Aggregation → ${huggingFaceResponse.parsedCommand?.toChain || 'Ethereum'}\n⚡ Time: 30 seconds\n💸 Fees: ~0.3%\n🔒 Security: Standard DEX Swap\n\n🚀 Ready to execute? Connect your wallet to proceed!`,
+              content: `✅ **Route Found!**
+
+💰 **Estimated Output**: ~${estimatedAmount.toFixed(4)} ${huggingFaceResponse.parsedCommand?.toToken}
+🔄 **Path**: Ethereum → 1inch Aggregation → ${huggingFaceResponse.parsedCommand?.toChain || 'Ethereum'}
+⚡ **Time**: 30 seconds
+💸 **Fees**: ~0.3%
+🔒 **Security**: Standard DEX Swap
+
+🚀 **Ready to execute?** Connect your wallet to proceed!`,
               timestamp: new Date(),
-              language: huggingFaceResponse.language
+              language: huggingFaceResponse.language,
+              reactions: { thumbsUp: false, thumbsDown: false }
             };
             setMessages(prev => [...prev, quoteMessage]);
           }, 2000);
@@ -105,10 +227,21 @@ const AIChat = () => {
         const greetingResponse: Message = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: "👋 Hello! I'm here to help you with all your DeFi needs. What would you like to do today?\n\n💡 Quick actions:\n• Swap tokens\n• Get price quotes\n• Bridge assets\n• Check balances",
+          content: `👋 **Hello!** I'm here to help you with all your DeFi needs.
+
+💡 **Quick actions**:
+• Swap tokens
+• Get price quotes  
+• Bridge assets
+• Check balances
+
+🌍 **Multi-language**: I understand English, Spanish, French, Japanese, and Chinese!
+
+What would you like to do today?`,
           timestamp: new Date(),
           confidence: 100,
-          language: 'English'
+          language: 'English',
+          reactions: { thumbsUp: false, thumbsDown: false }
         };
         setMessages(prev => [...prev, greetingResponse]);
         return;
@@ -118,10 +251,25 @@ const AIChat = () => {
         const priceResponse: Message = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: "📊 **Current Market Prices**\n\n💰 **ETH/USD**: $3,200.50\n💵 **USDC/USD**: $1.00\n🌟 **XLM/USD**: $0.12\n🪙 **BTC/USD**: $43,500.00\n\n💱 **Exchange Rates**\n• 1 ETH = 3,200 USDC\n• 1 ETH = 26,670 XLM\n• 1 BTC = 13.6 ETH\n\n🔄 Prices update in real-time via Chainlink oracles!",
+          content: `📊 **Current Market Prices**
+
+💰 **ETH/USD**: $3,200.50
+💵 **USDC/USD**: $1.00  
+🌟 **XLM/USD**: $0.12
+🪙 **BTC/USD**: $43,500.00
+
+💱 **Exchange Rates**
+• 1 ETH = 3,200 USDC
+• 1 ETH = 26,670 XLM
+• 1 BTC = 13.6 ETH
+
+🔄 **Real-time updates** via Chainlink oracles!
+
+💡 **Want to swap?** Just tell me the amount and tokens!`,
           timestamp: new Date(),
           confidence: 100,
-          language: 'English'
+          language: 'English',
+          reactions: { thumbsUp: false, thumbsDown: false }
         };
         setMessages(prev => [...prev, priceResponse]);
         return;
@@ -131,10 +279,36 @@ const AIChat = () => {
         const helpResponse: Message = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: "🛠️ **I can help you with:**\n\n💱 **Token Swaps**\n• \"Swap 1 ETH to USDC\"\n• \"Convert 100 USDC to XLM\"\n\n🌉 **Cross-Chain Bridges**\n• \"Bridge 0.5 ETH to Polygon\"\n• \"Transfer USDC to Stellar\"\n\n📊 **Market Information**\n• \"Get ETH price\"\n• \"Show current rates\"\n• \"What's the best rate for ETH to DAI?\"\n\n💰 **Portfolio Management**\n• \"Show my balances\"\n• \"Track my transactions\"\n\n🔒 **Security Features**\n• HTLC atomic swaps\n• Real-time price feeds\n• Slippage protection",
+          content: `🛠️ **I can help you with:**
+
+💱 **Token Swaps**
+• "Swap 1 ETH to USDC"
+• "Convert 100 USDC to XLM"
+
+🌉 **Cross-Chain Bridges**  
+• "Bridge 0.5 ETH to Polygon"
+• "Transfer USDC to Stellar"
+
+📊 **Market Information**
+• "Get ETH price"
+• "Show current rates"
+• "What's the best rate for ETH to DAI?"
+
+💰 **Portfolio Management**
+• "Show my balances"
+• "Track my transactions"
+
+🔒 **Security Features**
+• HTLC atomic swaps
+• Real-time price feeds
+• Slippage protection
+
+🌍 **Multi-language Support**
+Try speaking in Spanish, French, Japanese, or Chinese!`,
           timestamp: new Date(),
           confidence: 100,
-          language: 'English'
+          language: 'English',
+          reactions: { thumbsUp: false, thumbsDown: false }
         };
         setMessages(prev => [...prev, helpResponse]);
         return;
@@ -149,9 +323,19 @@ const AIChat = () => {
         fallbackResponse = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: `I need a bit more information to process your swap. ${suggestions.slice(0, 2).join(' ')} \n\n💡 Try these examples:\n• "Swap 1 ETH to USDC"\n• "Convert 100 USDC to XLM on Stellar"\n• "Bridge 0.5 ETH from Ethereum to Polygon"`,
+          content: `🤔 I need a bit more information to process your request.
+
+${suggestions.slice(0, 2).join('\n')}
+
+💡 **Try these examples**:
+• "Swap 1 ETH to USDC"
+• "Convert 100 USDC to XLM on Stellar"  
+• "Bridge 0.5 ETH from Ethereum to Polygon"
+
+🌍 **Or try in another language** - I understand multiple languages!`,
           timestamp: new Date(),
-          confidence: parsedCommand.confidence
+          confidence: parsedCommand.confidence,
+          reactions: { thumbsUp: false, thumbsDown: false }
         };
       } else {
         // High confidence - process the swap
@@ -161,10 +345,13 @@ const AIChat = () => {
         fallbackResponse = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: `🎯 Perfect! I understand you want to swap ${parsedCommand.fromAmount} ${parsedCommand.fromToken}${parsedCommand.fromChain ? ` on ${parsedCommand.fromChain}` : ''} to ${parsedCommand.toToken}${parsedCommand.toChain ? ` on ${parsedCommand.toChain}` : ''}.\n\n🔍 Let me find the best route for you...`,
+          content: `🎯 **Perfect!** I understand you want to swap ${parsedCommand.fromAmount} ${parsedCommand.fromToken}${parsedCommand.fromChain ? ` on ${parsedCommand.fromChain}` : ''} to ${parsedCommand.toToken}${parsedCommand.toChain ? ` on ${parsedCommand.toChain}` : ''}.
+
+🔍 **Finding the best route for you...**`,
           timestamp: new Date(),
           parsedCommand,
-          confidence: parsedCommand.confidence
+          confidence: parsedCommand.confidence,
+          reactions: { thumbsUp: false, thumbsDown: false }
         };
 
         // Show detailed quote after initial response
@@ -173,8 +360,17 @@ const AIChat = () => {
             const quoteMessage: Message = {
               id: (Date.now() + 2).toString(),
               type: 'ai',
-              content: `✅ Route Found!\n\n💰 Estimated Output: ~${estimatedAmount.toFixed(4)} ${parsedCommand.toToken}\n🔄 Path: ${parsedCommand.fromChain || 'Ethereum'} → 1inch Aggregation${isCrossChain ? ' → Cross-Chain Bridge' : ''} → ${parsedCommand.toChain || 'Ethereum'}\n⚡ Time: ${isCrossChain ? '2-5 minutes' : '30 seconds'}\n💸 Fees: ~${isCrossChain ? '2.5%' : '0.3%'}\n🔒 Security: ${isCrossChain ? 'HTLC Atomic Swap' : 'Standard DEX Swap'}\n\n🚀 Ready to execute? Connect your wallet to proceed!`,
+              content: `✅ **Route Found!**
+
+💰 **Estimated Output**: ~${estimatedAmount.toFixed(4)} ${parsedCommand.toToken}
+🔄 **Path**: ${parsedCommand.fromChain || 'Ethereum'} → 1inch Aggregation${isCrossChain ? ' → Cross-Chain Bridge' : ''} → ${parsedCommand.toChain || 'Ethereum'}
+⚡ **Time**: ${isCrossChain ? '2-5 minutes' : '30 seconds'}
+💸 **Fees**: ~${isCrossChain ? '2.5%' : '0.3%'}
+🔒 **Security**: ${isCrossChain ? 'HTLC Atomic Swap' : 'Standard DEX Swap'}
+
+🚀 **Ready to execute?** Connect your wallet to proceed!`,
               timestamp: new Date(),
+              reactions: { thumbsUp: false, thumbsDown: false }
             };
             setMessages(prev => [...prev, quoteMessage]);
           }, 2000);
@@ -195,8 +391,17 @@ const AIChat = () => {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try rephrasing your request.`,
-        timestamp: new Date()
+        content: `❌ **I encountered an error**: ${error instanceof Error ? error.message : 'Unknown error'}
+
+🔄 **Please try**:
+• Rephrasing your request
+• Using simpler language
+• Checking your internet connection
+
+💡 **Example**: "Swap 1 ETH to USDC"`,
+        timestamp: new Date(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reactions: { thumbsUp: false, thumbsDown: false }
       };
       setMessages(prev => [...prev, errorMessage]);
       
@@ -207,76 +412,218 @@ const AIChat = () => {
       });
     } finally {
       setIsProcessing(false);
+      setIsTyping(false);
     }
   };
 
+  const handleReaction = (messageId: string, reaction: 'thumbsUp' | 'thumbsDown') => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, reactions: { ...msg.reactions, [reaction]: !msg.reactions?.[reaction] } }
+        : msg
+    ));
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied!",
+      description: "Message copied to clipboard",
+    });
+  };
+
+  const toggleVoiceInput = () => {
+    setIsListening(!isListening);
+    // TODO: Implement voice input
+    toast({
+      title: "Voice Input",
+      description: "Voice input feature coming soon!",
+    });
+  };
+
   return (
-    <Card className="h-96 flex flex-col bg-gradient-card border-neon-cyan/20">
-      {/* Chat Messages */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`flex gap-2 max-w-[80%] ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                message.type === 'ai' 
-                  ? 'bg-neon-purple/20 text-neon-purple' 
-                  : 'bg-neon-cyan/20 text-neon-cyan'
-              }`}>
-                {message.type === 'ai' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
-              </div>
-              <div className={`rounded-lg p-3 ${
-                message.type === 'user'
-                  ? 'bg-neon-cyan/10 text-foreground border border-neon-cyan/20'
-                  : 'bg-space-gray text-foreground'
-              }`}>
-                <p className="text-sm whitespace-pre-line">{message.content}</p>
-                {message.confidence && (
-                  <div className="flex items-center gap-1 mt-2 text-xs">
-                    {message.confidence >= 60 ? (
-                      <CheckCircle className="w-3 h-3 text-neon-green" />
-                    ) : (
-                      <AlertCircle className="w-3 h-3 text-yellow-400" />
-                    )}
-                    <span className="text-muted-foreground">
-                      Confidence: {message.confidence}%
-                    </span>
-                  </div>
-                )}
-                {message.parsedCommand && (
-                  <div className="mt-2 p-2 bg-space-gray/50 rounded text-xs">
-                    <div className="text-neon-cyan font-mono">
-                      {message.parsedCommand.fromAmount} {message.parsedCommand.fromToken} 
-                      ({message.parsedCommand.fromChain}) → {message.parsedCommand.toToken} 
-                      ({message.parsedCommand.toChain})
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-        {isProcessing && (
-          <div className="flex gap-3">
+    <Card className="h-[600px] flex flex-col bg-gradient-card border-neon-cyan/20">
+      {/* Header */}
+      <div className="p-4 border-b border-neon-cyan/20 bg-space-gray/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-neon-purple/20 text-neon-purple flex items-center justify-center">
               <Bot className="w-4 h-4" />
             </div>
-            <div className="bg-space-gray rounded-lg p-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 animate-pulse text-neon-purple" />
-                <span className="text-sm">Processing your request...</span>
-              </div>
+            <div>
+              <h3 className="font-semibold text-foreground">SwapSage AI Assistant</h3>
+              <p className="text-xs text-muted-foreground">Powered by Advanced AI</p>
             </div>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMuted(!isMuted)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleVoiceInput}
+              className={`${isListening ? 'text-neon-cyan' : 'text-muted-foreground'} hover:text-foreground`}
+            >
+              {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowQuickActions(!showQuickActions)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
+      {/* Quick Actions */}
+      {showQuickActions && (
+        <div className="p-4 border-b border-neon-cyan/20 bg-space-gray/30">
+          <div className="flex flex-wrap gap-2">
+            {quickActions.map((action) => (
+              <Button
+                key={action.id}
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickAction(action)}
+                disabled={isProcessing}
+                className="text-xs border-neon-cyan/20 hover:border-neon-cyan/40 hover:bg-neon-cyan/10"
+              >
+                <action.icon className="w-3 h-3 mr-1" />
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
+      {/* Chat Messages */}
+      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
+        <div className="space-y-4">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`flex gap-2 max-w-[85%] ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  message.type === 'ai' 
+                    ? 'bg-neon-purple/20 text-neon-purple' 
+                    : 'bg-neon-cyan/20 text-neon-cyan'
+                }`}>
+                  {message.type === 'ai' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                </div>
+                <div className={`rounded-lg p-3 ${
+                  message.type === 'user'
+                    ? 'bg-neon-cyan/10 text-foreground border border-neon-cyan/20'
+                    : 'bg-space-gray text-foreground border border-neon-cyan/10'
+                }`}>
+                  <p className="text-sm whitespace-pre-line">{message.content}</p>
+                  
+                  {/* Message metadata */}
+                  <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      {message.confidence && (
+                        <div className="flex items-center gap-1">
+                          {message.confidence >= 60 ? (
+                            <CheckCircle className="w-3 h-3 text-neon-green" />
+                          ) : (
+                            <AlertCircle className="w-3 h-3 text-yellow-400" />
+                          )}
+                          <span>Confidence: {message.confidence}%</span>
+                        </div>
+                      )}
+                      {message.language && message.language !== 'English' && (
+                        <Badge variant="outline" className="text-xs">
+                          {message.language}
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {/* Message actions */}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(message.content)}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                      {message.type === 'ai' && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleReaction(message.id, 'thumbsUp')}
+                            className={`h-6 w-6 p-0 ${message.reactions?.thumbsUp ? 'text-neon-green' : 'text-muted-foreground hover:text-foreground'}`}
+                          >
+                            <ThumbsUp className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleReaction(message.id, 'thumbsDown')}
+                            className={`h-6 w-6 p-0 ${message.reactions?.thumbsDown ? 'text-red-400' : 'text-muted-foreground hover:text-foreground'}`}
+                          >
+                            <ThumbsDown className="w-3 h-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Parsed command display */}
+                  {message.parsedCommand && (
+                    <div className="mt-2 p-2 bg-neon-cyan/5 rounded border border-neon-cyan/20">
+                      <div className="text-neon-cyan font-mono text-xs">
+                        {message.parsedCommand.fromAmount} {message.parsedCommand.fromToken} 
+                        ({message.parsedCommand.fromChain}) → {message.parsedCommand.toToken} 
+                        ({message.parsedCommand.toChain})
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error display */}
+                  {message.error && (
+                    <div className="mt-2 p-2 bg-red-500/10 rounded border border-red-500/20">
+                      <div className="text-red-400 text-xs">
+                        Error: {message.error}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {/* Typing indicator */}
+          {isTyping && (
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-neon-purple/20 text-neon-purple flex items-center justify-center">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div className="bg-space-gray rounded-lg p-3 border border-neon-cyan/10">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-neon-purple" />
+                  <span className="text-sm">AI is thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-border">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-neon-cyan/20 bg-space-gray/30">
         <div className="flex gap-2">
           <Input
             value={input}
@@ -290,9 +637,41 @@ const AIChat = () => {
             variant="ai" 
             size="icon"
             disabled={isProcessing || !input.trim()}
+            className="bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
           >
-            <Send className="w-4 h-4" />
+            {isProcessing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
           </Button>
+        </div>
+        
+        {/* Language selector */}
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Globe className="w-3 h-3" />
+            <span>Language:</span>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              className="bg-transparent border-none text-xs focus:outline-none"
+            >
+              <option value="English">English</option>
+              <option value="Spanish">Español</option>
+              <option value="French">Français</option>
+              <option value="Japanese">日本語</option>
+              <option value="Chinese">中文</option>
+            </select>
+          </div>
+          
+          <div className="text-xs text-muted-foreground">
+            {walletState.isConnected ? (
+              <span className="text-neon-green">✓ Wallet Connected</span>
+            ) : (
+              <span>Connect wallet to execute swaps</span>
+            )}
+          </div>
         </div>
       </form>
     </Card>

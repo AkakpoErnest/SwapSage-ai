@@ -8,6 +8,7 @@ class BridgeService {
 
   // Supported chains
   private supportedChains: Chain[] = [
+    { id: 11155111, name: "Sepolia", symbol: "ETH", icon: "🔷", color: "blue", status: "testnet" },
     { id: 1, name: "Ethereum", symbol: "ETH", icon: "🔷", color: "blue", status: "live" },
     { id: 137, name: "Polygon", symbol: "MATIC", icon: "🟣", color: "purple", status: "live" },
     { id: 42161, name: "Arbitrum", symbol: "ARB", icon: "🔵", color: "cyan", status: "live" },
@@ -18,6 +19,12 @@ class BridgeService {
 
   // Supported tokens per chain
   private supportedTokens: Record<number, Token[]> = {
+    11155111: [
+      { symbol: "ETH", name: "Ethereum", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🔷", chainId: 11155111 },
+      { symbol: "mUSDC", name: "Mock USDC", address: "0xE560De00F664dE3C0B3815dd1AF4b6DF64123563", decimals: 6, icon: "💵", chainId: 11155111 },
+      { symbol: "USDC", name: "USD Coin", address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", decimals: 6, icon: "💵", chainId: 11155111 },
+      { symbol: "DAI", name: "Dai Stablecoin", address: "0x68194a729C2450ad26072b3D33ADaCbcef39D574", decimals: 18, icon: "🟢", chainId: 11155111 },
+    ],
     1: [
       { symbol: "ETH", name: "Ethereum", address: "0xEeeeeEeeeEeEeeEeEeEeeEeeeeEeeeeEeeeeEeEeE", decimals: 18, icon: "🔷", chainId: 1 },
       { symbol: "USDC", name: "USD Coin", address: "0xA0b86a33E6441b8c4C8C8C8C8C8C8C8C8C8C8C8C", decimals: 6, icon: "💵", chainId: 1 },
@@ -48,6 +55,7 @@ class BridgeService {
 
   // Bridge fee structure (in basis points)
   private bridgeFees: Record<number, number> = {
+    11155111: 10, // Sepolia: 0.10% (testnet)
     1: 25,    // Ethereum: 0.25%
     137: 20,  // Polygon: 0.20%
     42161: 20, // Arbitrum: 0.20%
@@ -58,6 +66,7 @@ class BridgeService {
 
   // Estimated bridge times (in minutes)
   private bridgeTimes: Record<number, number> = {
+    11155111: 1,  // Sepolia: 1 minute (testnet)
     1: 5,     // Ethereum: 5 minutes
     137: 3,   // Polygon: 3 minutes
     42161: 4, // Arbitrum: 4 minutes

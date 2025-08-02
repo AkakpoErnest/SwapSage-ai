@@ -68,7 +68,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-space">
-      <Header /> {/* Add the Header component here */}
+      <Header />
       
       {/* Hero Section */}
       <section className="relative py-20 px-4">

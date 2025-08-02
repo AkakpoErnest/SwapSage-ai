@@ -38,8 +38,9 @@ async function main() {
     const network = await ethers.provider.getNetwork();
     console.log(`🌐 Network: ${network.name} (Chain ID: ${network.chainId})`);
 
-    if (network.chainId !== 137) {
+    if (network.chainId !== 137n) {
       console.error("❌ Not connected to Polygon mainnet!");
+      console.error(`Expected chain ID: 137, got: ${network.chainId}`);
       process.exit(1);
     }
 
@@ -67,7 +68,7 @@ async function main() {
     // 2. Deploy SwapSageHTLC
     console.log("\n2️⃣ Deploying SwapSageHTLC...");
     const SwapSageHTLC = await ethers.getContractFactory("SwapSageHTLC");
-    const htlc = await SwapSageHTLC.connect(deployer).deploy({
+    const htlc = await SwapSageHTLC.connect(deployer).deploy(oracleAddress, {
       gasLimit: 1500000,
       gasPrice: gasPrice.gasPrice
     });
@@ -79,7 +80,7 @@ async function main() {
     // 3. Deploy SwapSageExecutor
     console.log("\n3️⃣ Deploying SwapSageExecutor...");
     const SwapSageExecutor = await ethers.getContractFactory("SwapSageExecutor");
-    const executor = await SwapSageExecutor.connect(deployer).deploy({
+    const executor = await SwapSageExecutor.connect(deployer).deploy(htlcAddress, {
       gasLimit: 1200000,
       gasPrice: gasPrice.gasPrice
     });

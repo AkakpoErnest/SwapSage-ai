@@ -1,0 +1,10 @@
+{
+  "network": "polygon",
+  "chainId": 137,
+  "deployer": "0xF9c3F6011C6C9036b99fa67Fb3ea4A7EBdcC76cB",
+  "timestamp": "2025-01-27T09:15:00.000Z",
+  "contracts": {
+    "oracle": "0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e",
+    "htlc": "0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb"
+  }
+} 

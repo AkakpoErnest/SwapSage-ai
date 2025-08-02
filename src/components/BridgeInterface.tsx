@@ -5,10 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ArrowRight, Network, Coins, Clock, AlertCircle, CheckCircle } from "lucide-react";
+import { Loader2, ArrowRight, Network, Coins, Clock, AlertCircle, CheckCircle, Wallet } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
-import { bridgeService } from "@/services/bridge/bridgeService";
+import { realCrossChainBridge } from "@/services/bridge/realCrossChainBridge";
 import { useToast } from "@/hooks/use-toast";
+import { ethers } from "ethers";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface Chain {
   id: number;
@@ -29,12 +32,15 @@ interface Token {
 }
 
 interface BridgeQuote {
-  estimatedTime: number;
-  bridgeFee: string;
+  fromAmount: string;
+  toAmount: string;
+  fee: string;
   gasFee: string;
   totalFee: string;
+  estimatedTime: number;
   minAmount: string;
   maxAmount: string;
+  confidence: number;
 }
 
 const BridgeInterface = () => {
@@ -50,6 +56,8 @@ const BridgeInterface = () => {
   const [supportedChains, setSupportedChains] = useState<Chain[]>([]);
   const [supportedTokens, setSupportedTokens] = useState<Token[]>([]);
   const [bridgeStatus, setBridgeStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
+  const [autoSelectWallet, setAutoSelectWallet] = useState(true);
+  const [generatedWallets, setGeneratedWallets] = useState<Record<number, string>>({});
 
   const { walletState } = useWallet();
   const { toast } = useToast();
@@ -68,7 +76,7 @@ const BridgeInterface = () => {
   // Available tokens (updated for Sepolia testnet)
   const tokens: Token[] = [
     { symbol: "ETH", name: "Ethereum", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🔷", chainId: 11155111 },
-    { symbol: "mUSDC", name: "Mock USDC", address: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000", decimals: 6, icon: "💵", chainId: 11155111 },
+    { symbol: "mUSDC", name: "Mock USDC", address: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0xE560De00F664dE3C0B3815dd1AF4b6DF64123563", decimals: 6, icon: "💵", chainId: 11155111 },
     { symbol: "USDC", name: "USD Coin", address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", decimals: 6, icon: "💵", chainId: 11155111 },
     { symbol: "DAI", name: "Dai Stablecoin", address: "0x68194a729C2450ad26072b3D33ADaCbcef39D574", decimals: 18, icon: "🟢", chainId: 11155111 },
     { symbol: "MATIC", name: "Polygon", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🟣", chainId: 137 },
@@ -87,10 +95,46 @@ const BridgeInterface = () => {
     }
   }, [fromChain, toChain, fromToken, amount]);
 
+  // Auto-fill recipient with wallet address when wallet connects
+  useEffect(() => {
+    if (walletState.isConnected && walletState.address && !recipient) {
+      setRecipient(walletState.address);
+    }
+  }, [walletState.isConnected, walletState.address, recipient]);
+
+  // Initialize real cross-chain bridge
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      const initializeRealBridge = async () => {
+        try {
+          // Initialize with RPC providers
+          const providers = {
+            11155111: "https://sepolia.infura.io/v3/your-project-id", // Sepolia
+            137: "https://polygon-rpc.com", // Polygon
+            1: "https://mainnet.infura.io/v3/your-project-id", // Ethereum
+          };
+
+          // For demo purposes, we'll use auto-generated wallets
+          // In production, users would provide their private keys
+          const privateKeys = {
+            11155111: "", // Will be auto-generated
+            137: "", // Will be auto-generated
+            1: "", // Will be auto-generated
+          };
+
+          await realCrossChainBridge.initialize(providers, privateKeys);
+          console.log("✅ Real cross-chain bridge initialized");
+        } catch (error) {
+          console.error('Failed to initialize real bridge:', error);
+        }
+      };
+      initializeRealBridge();
+    }
+  }, []);
+
   const initializeBridge = async () => {
     try {
       setIsLoading(true);
-      const chains = await bridgeService.getSupportedChains();
       setSupportedChains(chains);
       
       if (walletState.isConnected && walletState.chainId) {
@@ -116,35 +160,93 @@ const BridgeInterface = () => {
 
     try {
       setIsCalculating(true);
-      const quote = await bridgeService.getBridgeQuote(
-        fromChain.id,
-        toChain.id,
-        fromToken.address,
-        amount
-      );
+      
+      const quote = await realCrossChainBridge.getBridgeQuote({
+        fromChainId: fromChain.id,
+        toChainId: toChain.id,
+        fromToken: fromToken.address,
+        toToken: toToken?.address || "0x0000000000000000000000000000000000000000",
+        fromAmount: amount,
+        recipient: recipient || walletState.address || "",
+        autoSelectWallet
+      });
+      
       setBridgeQuote(quote);
     } catch (error) {
       console.error('Failed to calculate bridge quote:', error);
       setBridgeQuote(null);
+      toast({
+        title: "Quote Error",
+        description: "Failed to get bridge quote from on-chain oracle",
+        variant: "destructive",
+      });
     } finally {
       setIsCalculating(false);
     }
   };
 
   const handleExecuteBridge = async () => {
-    if (!fromChain || !toChain || !fromToken || !toToken || !amount || !recipient || !bridgeQuote) {
+    // Check each required field individually and provide specific error messages
+    if (!fromChain) {
       toast({
         title: "Bridge Error",
-        description: "Please fill in all required fields",
+        description: "Please select a source chain",
         variant: "destructive",
       });
       return;
     }
 
-    if (!walletState.isConnected) {
+    if (!toChain) {
       toast({
-        title: "Wallet Required",
-        description: "Please connect your wallet to execute bridge",
+        title: "Bridge Error",
+        description: "Please select a destination chain",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!fromToken) {
+      toast({
+        title: "Bridge Error",
+        description: "Please select a source token",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!toToken) {
+      toast({
+        title: "Bridge Error",
+        description: "Please select a destination token",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!amount || parseFloat(amount) <= 0) {
+      toast({
+        title: "Bridge Error",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Use recipient if provided, otherwise use wallet address
+    const finalRecipient = recipient || walletState.address;
+    if (!finalRecipient) {
+      toast({
+        title: "Bridge Error",
+        description: "Please provide a recipient address or connect your wallet",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!bridgeQuote) {
+      toast({
+        title: "Bridge Error",
+        description: "Please wait for bridge quote calculation",
         variant: "destructive",
       });
       return;
@@ -153,22 +255,28 @@ const BridgeInterface = () => {
     try {
       setBridgeStatus('processing');
       
-      const bridgeRequest = {
-        fromChain: fromChain.id,
-        toChain: toChain.id,
+      // Execute real on-chain cross-chain swap
+      const result = await realCrossChainBridge.executeCrossChainSwap({
+        fromChainId: fromChain.id,
+        toChainId: toChain.id,
         fromToken: fromToken.address,
         toToken: toToken.address,
-        amount,
-        recipient: recipient || walletState.address || '',
-        bridgeFee: bridgeQuote.bridgeFee,
-        estimatedTime: bridgeQuote.estimatedTime
-      };
-
-      const bridgeId = await bridgeService.executeBridge(bridgeRequest);
+        fromAmount: amount,
+        recipient: finalRecipient,
+        autoSelectWallet
+      });
+      
+      // Store generated wallet info if auto-selected
+      if (autoSelectWallet && result.swapId) {
+        setGeneratedWallets(prev => ({
+          ...prev,
+          [fromChain.id]: `Generated for swap ${result.swapId.slice(0, 8)}...`
+        }));
+      }
       
       toast({
-        title: "Bridge Initiated",
-        description: `Bridge transaction submitted: ${bridgeId.slice(0, 8)}...`,
+        title: "🎯 On-Chain Bridge Initiated!",
+        description: `Real HTLC swap created: ${result.swapId.slice(0, 8)}...`,
       });
 
       setBridgeStatus('completed');
@@ -179,11 +287,11 @@ const BridgeInterface = () => {
       setBridgeQuote(null);
       
     } catch (error) {
-      console.error('Bridge execution failed:', error);
+      console.error('Real bridge execution failed:', error);
       setBridgeStatus('failed');
       toast({
-        title: "Bridge Failed",
-        description: error instanceof Error ? error.message : "Bridge execution failed",
+        title: "❌ On-Chain Bridge Failed",
+        description: error instanceof Error ? error.message : "Real bridge execution failed",
         variant: "destructive",
       });
     }
@@ -372,14 +480,62 @@ const BridgeInterface = () => {
           </div>
         </div>
 
+        {/* Auto-Wallet Selection */}
+        <div className="mt-4 p-4 bg-space-gray/50 rounded-lg border border-neon-cyan/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-neon-cyan" />
+              <Label htmlFor="auto-wallet" className="text-sm font-medium">
+                Auto-Generate Wallet
+              </Label>
+            </div>
+            <Switch
+              id="auto-wallet"
+              checked={autoSelectWallet}
+              onCheckedChange={setAutoSelectWallet}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {autoSelectWallet 
+              ? "🎯 Will automatically generate and fund wallets for cross-chain operations"
+              : "🔐 Use your connected wallet for all transactions"
+            }
+          </p>
+          
+          {/* Show generated wallets */}
+          {Object.keys(generatedWallets).length > 0 && (
+            <div className="mt-3 p-2 bg-background/30 rounded border">
+              <p className="text-xs font-medium text-neon-cyan mb-1">Generated Wallets:</p>
+              {Object.entries(generatedWallets).map(([chainId, info]) => (
+                <div key={chainId} className="text-xs text-muted-foreground">
+                  Chain {chainId}: {info}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Bridge Quote */}
         {bridgeQuote && (
-          <div className="mt-6 p-4 bg-space-gray rounded-lg">
-            <h3 className="font-semibold mb-3">Bridge Quote</h3>
+          <div className="mt-6 p-4 bg-space-gray rounded-lg border border-neon-cyan/20">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">🎯 On-Chain Bridge Quote</h3>
+              <Badge variant={bridgeQuote.confidence > 90 ? "default" : "secondary"} className="text-xs">
+                {bridgeQuote.confidence}% Confidence
+              </Badge>
+            </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="flex justify-between">
+                <span className="text-muted-foreground">From Amount:</span>
+                <span className="font-medium">{bridgeQuote.fromAmount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">To Amount:</span>
+                <span className="font-medium">{bridgeQuote.toAmount}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Bridge Fee:</span>
-                <span className="font-medium">{bridgeQuote.bridgeFee}</span>
+                <span className="font-medium">{bridgeQuote.fee}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Gas Fee:</span>
@@ -391,7 +547,20 @@ const BridgeInterface = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Estimated Time:</span>
-                <span className="font-medium">{bridgeQuote.estimatedTime} minutes</span>
+                <span className="font-medium">{bridgeQuote.estimatedTime} min</span>
+              </div>
+            </div>
+            
+            {/* Oracle Confidence Indicator */}
+            <div className="mt-3 p-2 bg-background/30 rounded">
+              <div className="flex items-center gap-2 text-xs">
+                <div className={`w-2 h-2 rounded-full ${
+                  bridgeQuote.confidence > 90 ? 'bg-green-500' : 
+                  bridgeQuote.confidence > 80 ? 'bg-yellow-500' : 'bg-red-500'
+                }`} />
+                <span className="text-muted-foreground">
+                  Oracle Price Confidence: {bridgeQuote.confidence}%
+                </span>
               </div>
             </div>
           </div>

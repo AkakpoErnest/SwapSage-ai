@@ -35,10 +35,10 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
 
   // Real contract addresses from environment
   const contracts = {
-    htlc: import.meta.env.VITE_HTLC_CONTRACT_ADDRESS || "0x1234567890123456789012345678901234567890",
-    oracle: import.meta.env.VITE_ORACLE_CONTRACT_ADDRESS || "0x0987654321098765432109876543210987654321",
-    executor: import.meta.env.VITE_EXECUTOR_CONTRACT_ADDRESS || "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
-    mockToken: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000"
+    htlc: import.meta.env.VITE_HTLC_CONTRACT_ADDRESS || "0xd7c66D8B635152709fbe14E72eF91C9417391f37",
+    oracle: import.meta.env.VITE_ORACLE_CONTRACT_ADDRESS || "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1",
+    executor: import.meta.env.VITE_EXECUTOR_CONTRACT_ADDRESS || "0x9209383Dd4fce1bF82aA26c6476Bbf795d1DfF48",
+    mockToken: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0xE560De00F664dE3C0B3815dd1AF4b6DF64123563"
   };
 
   const tokens = [
@@ -66,23 +66,27 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
 
       // Try to get price from Oracle contract
       if (typeof window !== 'undefined' && window.ethereum) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const oracleABI = [
-          'function getPrice(address token) external view returns (uint256 price, uint256 timestamp, bool isValid)'
-        ];
-        const oracleContract = new ethers.Contract(contracts.oracle, oracleABI, provider);
-        
-        const [price, timestamp, isValid] = await oracleContract.getPrice(tokenInfo.address);
-        
-        if (isValid) {
-          const realPrice: OraclePrice = {
-            token: selectedToken,
-            price: ethers.formatUnits(price, 8),
-            timestamp: Number(timestamp) * 1000,
-            decimals: 8
-          };
-          setCurrentPrice(realPrice);
-          return;
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const oracleABI = [
+            'function getPrice(address token) external view returns (uint256 price, uint256 timestamp, bool isValid)'
+          ];
+          const oracleContract = new ethers.Contract(contracts.oracle, oracleABI, provider);
+          
+          const [price, timestamp, isValid] = await oracleContract.getPrice(tokenInfo.address);
+          
+          if (isValid && price > 0) {
+            const realPrice: OraclePrice = {
+              token: selectedToken,
+              price: ethers.formatUnits(price, 8),
+              timestamp: Number(timestamp) * 1000,
+              decimals: 8
+            };
+            setCurrentPrice(realPrice);
+            return;
+          }
+        } catch (oracleError) {
+          console.warn('Oracle contract not accessible, using fallback price:', oracleError);
         }
       }
       
@@ -96,9 +100,18 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
       setCurrentPrice(mockPrice);
     } catch (error) {
       console.error('Price fetch error:', error);
+      // Set a fallback price even on error to prevent UI issues
+      const fallbackPrice: OraclePrice = {
+        token: selectedToken,
+        price: selectedToken === "ETH" ? "2000.00" : "1.00",
+        timestamp: Date.now(),
+        decimals: 8
+      };
+      setCurrentPrice(fallbackPrice);
+      
       toast({
         title: "Price Fetch Error",
-        description: "Failed to fetch current price",
+        description: "Using fallback price - Oracle contract not accessible",
         variant: "destructive",
       });
     } finally {
@@ -178,16 +191,11 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
   };
 
   const initiateHTLCSwap = async () => {
-    if (!walletAddress || !amount) return;
+    if (!amount || !selectedToken || !isConnected) return;
 
     try {
       setIsLoading(true);
       
-      // Generate secret and hashlock
-      const secret = contractService.generateSecret();
-      const hashlock = contractService.generateHashlock(secret);
-      const timelock = contractService.calculateTimelock(2); // 2 hours
-
       // Get token info
       const tokenInfo = tokens.find(t => t.symbol === selectedToken);
       const toToken = selectedToken === "ETH" ? "mUSDC" : "ETH";
@@ -197,7 +205,20 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         throw new Error("Token not found");
       }
 
-      // Try to initiate real HTLC swap
+      // Generate secret and hashlock for HTLC
+      const secret = ethers.hexlify(ethers.randomBytes(32));
+      const hashlock = ethers.keccak256(secret);
+      
+      // Calculate timelock (1 hour from now)
+      const timelock = Math.floor(Date.now() / 1000) + 3600;
+      
+      // Get current price for calculation
+      const currentPrice = parseFloat(selectedToken === "ETH" ? "2000.00" : "1.00");
+      const toAmount = selectedToken === "ETH" 
+        ? (parseFloat(amount) * currentPrice).toString()
+        : (parseFloat(amount) / currentPrice).toString();
+
+      // Try to execute real HTLC transaction
       if (typeof window !== 'undefined' && window.ethereum) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
@@ -207,74 +228,98 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
         ];
         const htlcContract = new ethers.Contract(contracts.htlc, htlcABI, signer);
         
-        const amountWei = ethers.parseEther(amount);
-        const toAmountWei = ethers.parseEther(swapQuote?.toAmount || "0");
+        const fromAmountWei = ethers.parseEther(amount);
+        const toAmountWei = ethers.parseEther(toAmount);
         
-        const tx = await htlcContract.initiateSwap(
-          walletAddress, // recipient (for demo, use same address)
-          tokenInfo.address,
-          toTokenInfo.address,
-          amountWei,
-          toAmountWei,
-          hashlock,
-          timelock,
-          { 
-            value: tokenInfo.address === "0x0000000000000000000000000000000000000000" ? amountWei : 0 
-          }
-        );
+        // Execute the HTLC transaction
+        let tx;
+        if (tokenInfo.address === "0x0000000000000000000000000000000000000000") {
+          // ETH transfer
+          tx = await htlcContract.initiateSwap(
+            walletAddress || signer.address,
+            tokenInfo.address,
+            toTokenInfo.address,
+            fromAmountWei,
+            toAmountWei,
+            hashlock,
+            timelock,
+            { value: fromAmountWei }
+          );
+        } else {
+          // Token transfer (would need approval first)
+          tx = await htlcContract.initiateSwap(
+            walletAddress || signer.address,
+            tokenInfo.address,
+            toTokenInfo.address,
+            fromAmountWei,
+            toAmountWei,
+            hashlock,
+            timelock
+          );
+        }
         
         const receipt = await tx.wait();
         
-        // Create swap record
-        const realSwap: HTLCSwap = {
-          swapId: receipt.hash, // Use tx hash as swap ID for now
-          initiator: walletAddress,
-          recipient: walletAddress,
-          token: selectedToken,
-          amount: amount,
-          hashlock: hashlock,
-          timelock: timelock,
-          withdrawn: false,
-          refunded: false,
-          secret: secret
+        // Generate swap ID
+        const swapId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+          ['address', 'address', 'address', 'address', 'uint256', 'uint256', 'bytes32', 'uint256'],
+          [signer.address, walletAddress || signer.address, tokenInfo.address, toTokenInfo.address, fromAmountWei, toAmountWei, hashlock, timelock]
+        ));
+        
+        toast({
+          title: "🎯 Atomic Swap Initiated!",
+          description: `Real HTLC transaction: ${swapId.slice(0, 8)}...`,
+        });
+        
+        // Add to active swaps
+        const newSwap: HTLCSwap = {
+          id: swapId,
+          fromToken: selectedToken,
+          toToken: toToken,
+          fromAmount: amount,
+          toAmount: toAmount,
+          hashlock,
+          secret,
+          timelock,
+          status: 'pending',
+          txHash: receipt.hash,
+          createdAt: Date.now()
         };
         
-        setActiveSwaps(prev => [...prev, realSwap]);
-        toast({
-          title: "Swap Initiated",
-          description: `HTLC swap created successfully! TX: ${receipt.hash}`,
-        });
+        setActiveSwaps(prev => [...prev, newSwap]);
+        setAmount("");
+        
         return;
       }
       
-      // Fallback to mock swap
+      // Fallback to mock transaction
       const mockSwap: HTLCSwap = {
-        swapId: `0x${Math.random().toString(16).substr(2, 64)}`,
-        initiator: walletAddress,
-        recipient: walletAddress,
-        token: selectedToken,
-        amount: amount,
-        hashlock: hashlock,
-        timelock: timelock,
-        withdrawn: false,
-        refunded: false,
-        secret: secret
+        id: `mock_${Date.now()}`,
+        fromToken: selectedToken,
+        toToken: toToken,
+        fromAmount: amount,
+        toAmount: toAmount,
+        hashlock,
+        secret,
+        timelock,
+        status: 'pending',
+        txHash: `0x${Math.random().toString(16).substr(2, 64)}`,
+        createdAt: Date.now()
       };
-
+      
       setActiveSwaps(prev => [...prev, mockSwap]);
-
+      setAmount("");
+      
       toast({
-        title: "HTLC Swap Initiated",
-        description: `Created atomic swap for ${amount} ${selectedToken}`,
+        title: "Mock Atomic Swap Created",
+        description: "Demo HTLC swap created (no real transaction)",
       });
-
-      // In real implementation, this would call the contract
-      // await contractService.initiateHTLCSwap(recipient, token, amount, hashlock, timelock);
       
     } catch (error) {
+      console.error('HTLC swap error:', error);
       toast({
-        title: "Swap Error",
-        description: "Failed to initiate HTLC swap",
+        title: "HTLC Swap Error",
+        description: error instanceof Error ? error.message : "Failed to initiate atomic swap",
         variant: "destructive",
       });
     } finally {
@@ -483,13 +528,13 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
               {activeSwaps.map((swap, index) => (
                 <div key={index} className="bg-space-gray rounded-lg p-3 text-sm">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-mono">{swap.swapId.slice(0, 8)}...</span>
-                    <Badge variant={swap.withdrawn ? "default" : swap.refunded ? "destructive" : "secondary"}>
-                      {swap.withdrawn ? "Completed" : swap.refunded ? "Refunded" : "Active"}
+                    <span className="font-mono">{swap.id.slice(0, 8)}...</span>
+                    <Badge variant={swap.status === 'completed' ? "default" : swap.status === 'refunded' ? "destructive" : "secondary"}>
+                      {swap.status}
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {swap.amount} {swap.token} • Expires: {new Date(swap.timelock * 1000).toLocaleString()}
+                    {swap.fromAmount} {swap.fromToken} • Expires: {new Date(swap.timelock * 1000).toLocaleString()}
                   </div>
                 </div>
               ))}

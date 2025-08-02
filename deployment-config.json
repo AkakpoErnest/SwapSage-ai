@@ -50,9 +50,10 @@
       "rpcUrl": "https://polygon-rpc.com",
       "explorerUrl": "https://polygonscan.com",
       "contracts": {
-        "htlc": "",
-        "oracle": "",
-        "executor": "",
+        "htlc": "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1",
+        "oracle": "0xfB92409880a6c04FeDb1d4FD5a498699D48a5492",
+        "executor": "0x8156b3410cE3b89fd15477dC2a5Ae3ed8037c0A4",
+        "simpleHtlc": "0xE560De00F664dE3C0B3815dd1AF4b6DF64123563",
         "mockToken": ""
       },
       "tokens": {

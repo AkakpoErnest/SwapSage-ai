@@ -56,10 +56,13 @@ class OneInchAPI {
         return this.getFallbackTokens(chainId);
       }
 
-      const response = await fetch(`${this.baseUrl}/swap/v6.0/${chainId}/tokens`, {
+      // Use CORS proxy to avoid browser CORS issues
+      const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+      const response = await fetch(`${corsProxy}${this.baseUrl}/swap/v6.0/${chainId}/tokens`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Accept': 'application/json',
+          'Origin': 'http://localhost:8080',
         },
       });
       
@@ -120,13 +123,16 @@ class OneInchAPI {
         disableEstimate: 'true',
       });
 
-      const url = `${this.baseUrl}/swap/v6.0/${chainId}/swap?${params}`;
+      // Use CORS proxy to avoid browser CORS issues
+      const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+      const url = `${corsProxy}${this.baseUrl}/swap/v6.0/${chainId}/swap?${params}`;
       console.log('Making 1inch API request to:', url);
 
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Accept': 'application/json',
+          'Origin': 'http://localhost:8080',
         },
       });
 
@@ -169,10 +175,13 @@ class OneInchAPI {
   // Get token price
   async getTokenPrice(chainId: number, tokenAddress: string): Promise<number> {
     try {
-      const response = await fetch(`${this.baseUrl}/quote/v6.0/${chainId}?src=${tokenAddress}&dst=0xA0b86a33E6441b8c4aC8C8C8C8C8C8C8C8C8C8C8C&amount=1000000000000000000`, {
+      // Use CORS proxy to avoid browser CORS issues
+      const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+      const response = await fetch(`${corsProxy}${this.baseUrl}/quote/v6.0/${chainId}?src=${tokenAddress}&dst=0xA0b86a33E6441b8c4aC8C8C8C8C8C8C8C8C8C8C8C&amount=1000000000000000000`, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Accept': 'application/json',
+          'Origin': 'http://localhost:8080',
         },
       });
 
@@ -241,11 +250,11 @@ class OneInchAPI {
 
   private getFallbackTokens(chainId: number): Record<string, Token> {
     const tokens: Record<string, Token> = {
-      // ETH (native token)
+      // Native token (ETH/MATIC)
       '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': {
         address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-        symbol: 'ETH',
-        name: 'Ethereum',
+        symbol: chainId === 137 ? 'MATIC' : 'ETH',
+        name: chainId === 137 ? 'Polygon' : 'Ethereum',
         decimals: 18,
       },
     };
@@ -294,6 +303,38 @@ class OneInchAPI {
         address: '0x68194a729C2450ad26072b3D33ADaCbcef39D574',
         symbol: 'DAI',
         name: 'Dai Stablecoin (Sepolia)',
+        decimals: 18,
+      };
+    }
+
+    // Add Polygon mainnet tokens
+    if (chainId === 137) {
+      // USDC on Polygon mainnet
+      tokens['0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'] = {
+        address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+        symbol: 'USDC',
+        name: 'USD Coin',
+        decimals: 6,
+      };
+      // USDT on Polygon mainnet
+      tokens['0xc2132D05D31c914a87C6611C10748AEb04B58e8F'] = {
+        address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+        symbol: 'USDT',
+        name: 'Tether USD',
+        decimals: 6,
+      };
+      // DAI on Polygon mainnet
+      tokens['0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063'] = {
+        address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
+        symbol: 'DAI',
+        name: 'Dai Stablecoin',
+        decimals: 18,
+      };
+      // WETH on Polygon mainnet
+      tokens['0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'] = {
+        address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
+        symbol: 'WETH',
+        name: 'Wrapped Ether',
         decimals: 18,
       };
     }
