@@ -218,7 +218,7 @@ const Header: React.FC = () => {
               <DropdownMenuTrigger asChild>
                 <Button 
                   disabled={isConnectingMetaMask || isConnectingFreighter}
-                  className="wallet-connect-btn bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border-0 shadow-lg"
+                  className="wallet-connect-btn bg-gradient-to-r from-neon-cyan to-neon-purple hover:from-neon-cyan/80 hover:to-neon-purple/80 text-black font-medium border-0 shadow-lg shadow-neon-cyan/20 transition-all duration-200"
                 >
                   {isConnectingMetaMask || isConnectingFreighter ? (
                     <>
@@ -234,23 +234,26 @@ const Header: React.FC = () => {
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-64 bg-space-gray/95 backdrop-blur-sm border border-neon-cyan/20 shadow-xl shadow-neon-cyan/10">
                 <DropdownMenuItem 
                   onClick={() => handleNetworkSelect('ethereum')}
                   disabled={isConnectingMetaMask || isConnectingFreighter}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between p-4 hover:bg-neon-cyan/10 transition-colors duration-200"
                 >
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">M</span>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg">
+                      <span className="text-white text-sm font-bold">M</span>
                     </div>
-                    <span>MetaMask</span>
+                    <div>
+                      <span className="font-medium text-white">MetaMask</span>
+                      <p className="text-xs text-muted-foreground">Ethereum & Polygon</p>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`text-xs px-2 py-1 rounded ${
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                       getWalletStatus('MetaMask') === 'Installed' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
                     }`}>
                       {getWalletStatus('MetaMask')}
                     </span>
@@ -262,7 +265,7 @@ const Header: React.FC = () => {
                           e.stopPropagation();
                           handleWalletInstall('MetaMask');
                         }}
-                        className="h-6 w-6 p-0"
+                        className="h-6 w-6 p-0 text-neon-cyan hover:text-neon-cyan/80"
                       >
                         <ExternalLink className="h-3 w-3" />
                       </Button>
@@ -272,19 +275,22 @@ const Header: React.FC = () => {
                 <DropdownMenuItem 
                   onClick={() => handleNetworkSelect('stellar')}
                   disabled={isConnectingMetaMask || isConnectingFreighter}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between p-4 hover:bg-neon-cyan/10 transition-colors duration-200"
                 >
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">F</span>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                      <span className="text-white text-sm font-bold">F</span>
                     </div>
-                    <span>Freighter</span>
+                    <div>
+                      <span className="font-medium text-white">Freighter</span>
+                      <p className="text-xs text-muted-foreground">Stellar Network</p>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`text-xs px-2 py-1 rounded ${
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                       getWalletStatus('Freighter') === 'Installed' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
                     }`}>
                       {getWalletStatus('Freighter')}
                     </span>
@@ -296,7 +302,7 @@ const Header: React.FC = () => {
                           e.stopPropagation();
                           handleWalletInstall('Freighter');
                         }}
-                        className="h-6 w-6 p-0"
+                        className="h-6 w-6 p-0 text-neon-cyan hover:text-neon-cyan/80"
                       >
                         <ExternalLink className="h-3 w-3" />
                       </Button>

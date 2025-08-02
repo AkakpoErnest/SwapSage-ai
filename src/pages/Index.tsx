@@ -22,7 +22,7 @@ import Dashboard from "@/components/Dashboard";
 import SmartContractIntegration from "@/components/SmartContractIntegration";
 import TransactionProgress from "@/components/TransactionProgress";
 import BridgeInterface from "@/components/BridgeInterface";
-import TransactionHistory from "@/components/TransactionHistory";
+
 import Header from "@/components/Header";
 import { useWalletContext } from "@/contexts/WalletContext";
 
@@ -62,7 +62,23 @@ const Index = () => {
       case "bridge":
         return <BridgeInterface />;
       case "history":
-        return <TransactionHistory />;
+        return (
+          <div className="container mx-auto px-4 py-8">
+            <Card className="p-6 bg-gradient-card border-neon-cyan/20">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-full bg-gradient-primary flex items-center justify-center">
+                  <Activity className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-2">Transaction History</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Transaction history feature has been removed
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+        );
       case "contracts":
         return <SmartContractIntegration 
           walletAddress={walletState.address}
