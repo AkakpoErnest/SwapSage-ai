@@ -18,7 +18,6 @@ import {
   WalletIcon
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
-import { useWalletContext } from "@/contexts/WalletContext";
 import { transactionHistoryService } from "@/services/transactionHistory";
 import { bridgeService } from "@/services/bridge/bridgeService";
 import { useToast } from "@/hooks/use-toast";
@@ -52,7 +51,7 @@ const TransactionHistory = () => {
     totalVolume: "0",
   });
 
-  const { walletState } = useWallet();
+  const { walletState, connectEthereum } = useWallet();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -76,6 +75,85 @@ const TransactionHistory = () => {
       
       // Load bridge transactions
       const bridgeTransactions = await bridgeService.getBridgeHistory(walletState.address);
+      
+      // Add some sample transactions if none exist (for demo purposes)
+      if (swapTransactions.length === 0 && bridgeTransactions.length === 0) {
+        const sampleTransactions: Transaction[] = [
+          {
+            id: '1',
+            type: 'swap',
+            status: 'completed',
+            fromToken: 'MATIC',
+            toToken: 'USDC',
+            fromAmount: '100',
+            toAmount: '80.5',
+            recipient: walletState.address,
+            timestamp: Date.now() - 3600000, // 1 hour ago
+            txHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+          },
+          {
+            id: '2',
+            type: 'bridge',
+            status: 'completed',
+            fromToken: 'MATIC',
+            toToken: 'XLM',
+            fromAmount: '50',
+            toAmount: '125',
+            fromChain: 137,
+            toChain: 100,
+            recipient: walletState.address,
+            timestamp: Date.now() - 7200000, // 2 hours ago
+            txHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+          },
+          {
+            id: '3',
+            type: 'swap',
+            status: 'pending',
+            fromToken: 'USDC',
+            toToken: 'WBTC',
+            fromAmount: '1000',
+            toAmount: '0.022',
+            recipient: walletState.address,
+            timestamp: Date.now() - 1800000, // 30 minutes ago
+            txHash: '0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba',
+          }
+        ];
+        
+        // Save sample transactions
+        for (const tx of sampleTransactions) {
+          await transactionHistoryService.saveTransaction(tx);
+        }
+        
+        // Reload transactions
+        const updatedSwapTransactions = await transactionHistoryService.getTransactionHistory(walletState.address);
+        const updatedBridgeTransactions = await bridgeService.getBridgeHistory(walletState.address);
+        
+        const allTransactions: Transaction[] = [
+          ...updatedSwapTransactions.map(tx => ({
+            ...tx,
+            type: 'swap' as const,
+          })),
+          ...updatedBridgeTransactions.map(tx => ({
+            id: tx.id,
+            type: 'bridge' as const,
+            status: tx.status,
+            fromToken: tx.fromToken,
+            toToken: tx.toToken,
+            fromAmount: tx.fromAmount,
+            toAmount: tx.toAmount,
+            fromChain: tx.fromChain,
+            toChain: tx.toChain,
+            recipient: tx.recipient,
+            timestamp: tx.timestamp,
+            txHash: tx.txHash,
+            error: tx.error,
+          }))
+        ];
+        
+        setTransactions(allTransactions);
+        calculateStats(allTransactions);
+        return;
+      }
       
       // Combine and format transactions
       const allTransactions: Transaction[] = [
@@ -259,10 +337,14 @@ const TransactionHistory = () => {
             <Button 
               onClick={async () => {
                 try {
-                  const { connectEthereum } = useWalletContext();
                   await connectEthereum();
                 } catch (error) {
                   console.error('Failed to connect wallet:', error);
+                  toast({
+                    title: "Connection Failed",
+                    description: "Failed to connect wallet. Please try again.",
+                    variant: "destructive",
+                  });
                 }
               }}
               className="bg-gradient-primary hover:bg-gradient-primary/80"
@@ -283,10 +365,10 @@ const TransactionHistory = () => {
         <div>
           <h2 className="text-3xl font-bold mb-2 flex items-center gap-2">
             <Activity className="w-8 h-8 text-neon-cyan" />
-            Transaction History
+            🟣⭐ Polygon-Stellar Transaction History
           </h2>
           <p className="text-muted-foreground">
-            View and manage your swap and bridge transactions
+            View and manage your cross-chain swap and bridge transactions
           </p>
         </div>
         <div className="flex gap-2">

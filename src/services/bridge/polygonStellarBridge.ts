@@ -60,6 +60,21 @@ class PolygonStellarBridge {
   constructor() {}
 
   /**
+   * Validate Stellar address format
+   */
+  private isValidStellarAddress(address: string): boolean {
+    // Stellar addresses start with 'G' and are 56 characters long
+    return address.startsWith('G') && address.length === 56;
+  }
+
+  /**
+   * Validate Ethereum/Polygon address format
+   */
+  private isValidEthereumAddress(address: string): boolean {
+    return ethers.isAddress(address);
+  }
+
+  /**
    * Initialize the bridge with providers
    */
   async initialize(polygonRpcUrl: string, stellarNetwork: 'TESTNET' | 'PUBLIC' = 'TESTNET') {
@@ -190,6 +205,11 @@ class PolygonStellarBridge {
       throw new Error('Polygon provider not initialized');
     }
 
+    // Validate recipient address format
+    if (!this.isValidStellarAddress(recipient)) {
+      throw new Error(`Invalid Stellar address: ${recipient}. Stellar addresses should start with 'G' and be 56 characters long.`);
+    }
+
     // Generate secret and hashlock
     const secret = ethers.hexlify(ethers.randomBytes(32));
     const hashlock = ethers.keccak256(secret);
@@ -219,10 +239,11 @@ class PolygonStellarBridge {
     // For demo, we'll simulate the transaction
     const mockTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
     
-    // Generate swap ID
+    // Generate swap ID - use a placeholder Ethereum address for the recipient in the swap ID
+    const placeholderEthAddress = '0x0000000000000000000000000000000000000000';
     const swapId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
       ['address', 'string', 'address', 'string', 'uint256', 'string', 'bytes32', 'uint256'],
-      [recipient, stellarAccount, request.fromToken, request.toToken, fromAmountWei, quote.toAmount, hashlock, timelock]
+      [placeholderEthAddress, stellarAccount, request.fromToken, request.toToken, fromAmountWei, quote.toAmount, hashlock, timelock]
     ));
     
     // Create Stellar HTLC

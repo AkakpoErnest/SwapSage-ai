@@ -278,14 +278,59 @@ const BridgeInterface = () => {
     }
 
     // Use recipient if provided, otherwise use wallet address
-    const finalRecipient = recipient || walletState.address;
-    if (!finalRecipient) {
-      toast({
-        title: "Bridge Error",
-        description: "Please provide a recipient address or connect your wallet",
-        variant: "destructive",
-      });
-      return;
+    let finalRecipient = recipient || walletState.address;
+    
+    // For cross-chain swaps, validate the recipient address format
+    if (fromChain?.name.toLowerCase() === 'polygon' && toChain?.name.toLowerCase() === 'stellar') {
+      // For Polygon to Stellar, recipient should be a Stellar address
+      if (!finalRecipient) {
+        toast({
+          title: "Bridge Error",
+          description: "Please provide a Stellar recipient address for cross-chain swaps",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate Stellar address format
+      if (!finalRecipient.startsWith('G') || finalRecipient.length !== 56) {
+        toast({
+          title: "Bridge Error",
+          description: "Invalid Stellar address. Stellar addresses should start with 'G' and be 56 characters long.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else if (fromChain?.name.toLowerCase() === 'stellar' && toChain?.name.toLowerCase() === 'polygon') {
+      // For Stellar to Polygon, recipient should be an Ethereum address
+      if (!finalRecipient) {
+        toast({
+          title: "Bridge Error",
+          description: "Please provide an Ethereum/Polygon recipient address for cross-chain swaps",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate Ethereum address format
+      if (!finalRecipient.startsWith('0x') || finalRecipient.length !== 42) {
+        toast({
+          title: "Bridge Error",
+          description: "Invalid Ethereum address. Ethereum addresses should start with '0x' and be 42 characters long.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Same chain swap
+      if (!finalRecipient) {
+        toast({
+          title: "Bridge Error",
+          description: "Please provide a recipient address or connect your wallet",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     if (!bridgeQuote) {
@@ -529,11 +574,42 @@ const BridgeInterface = () => {
             <div>
               <label className="text-sm font-medium mb-2 block">Recipient Address (Optional)</label>
               <Input
-                placeholder={walletState.address || "Enter recipient address"}
+                placeholder={
+                  fromChain?.name.toLowerCase() === 'polygon' && toChain?.name.toLowerCase() === 'stellar'
+                    ? "Enter Stellar address (starts with G...)"
+                    : fromChain?.name.toLowerCase() === 'stellar' && toChain?.name.toLowerCase() === 'polygon'
+                    ? "Enter Ethereum/Polygon address (starts with 0x...)"
+                    : walletState.address || "Enter recipient address"
+                }
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
                 className="bg-background/50"
               />
+              {fromChain && toChain && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  <p>
+                    {fromChain.name.toLowerCase() === 'polygon' && toChain.name.toLowerCase() === 'stellar'
+                      ? "Stellar addresses start with 'G' and are 56 characters long"
+                      : fromChain.name.toLowerCase() === 'stellar' && toChain.name.toLowerCase() === 'polygon'
+                      ? "Ethereum addresses start with '0x' and are 42 characters long"
+                      : "Enter the recipient's address"
+                    }
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (fromChain.name.toLowerCase() === 'polygon' && toChain.name.toLowerCase() === 'stellar') {
+                        setRecipient('GBBIBMRK44CUJMCQQWNTRP2SGYYTPBRIKG5A7RHSRG');
+                      } else if (fromChain.name.toLowerCase() === 'stellar' && toChain.name.toLowerCase() === 'polygon') {
+                        setRecipient('0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6');
+                      }
+                    }}
+                    className="text-neon-cyan hover:text-neon-cyan/80 underline"
+                  >
+                    Use test address
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
