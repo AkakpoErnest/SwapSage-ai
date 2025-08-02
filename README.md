@@ -384,25 +384,25 @@ This project was built for the **1inch Hackathon** and demonstrates:
 
 ## 🔮 Roadmap
 
-### **Q1 2024** ✅
+### **Q1 2025** ✅
 - [x] Ethereum ↔ Stellar atomic swaps
 - [x] AI-powered natural language interface
 - [x] HTLC smart contract implementation
 - [x] Real-time transaction monitoring
 
-### **Q2 2024** 🚧
+### **Q2 2025** 🚧
 - [ ] Add Polygon and BSC support
 - [ ] Mobile app development
 - [ ] Advanced DeFi features
 - [ ] Cross-chain NFT swaps
 
-### **Q3 2024** 📋
+### **Q3 2025** 📋
 - [ ] Solana integration
 - [ ] Advanced AI features
 - [ ] Institutional features
 - [ ] API for developers
 
-### **Q4 2024** 🎯
+### **Q4 2025** 🎯
 - [ ] Multi-chain DEX aggregation
 - [ ] Advanced order types
 - [ ] Social trading features
