@@ -158,7 +158,7 @@ const BridgeInterface = () => {
     if (typeof window !== 'undefined' && window.ethereum) {
       const initializePolygonStellarBridge = async () => {
         try {
-          await polygonStellarBridge.initialize("https://polygon-rpc.com", "TESTNET");
+          await polygonStellarBridge.initialize("https://polygon-rpc.com", "PUBLIC");
           console.log("✅ Polygon-Stellar bridge initialized");
         } catch (error) {
           console.error('Failed to initialize Polygon-Stellar bridge:', error);
@@ -404,6 +404,16 @@ const BridgeInterface = () => {
 
     try {
       setBridgeStatus('processing');
+      
+      // Check wallet connection
+      if (!walletState.isConnected) {
+        throw new Error('Please connect your wallet first');
+      }
+      
+      // Check if we're on the correct network
+      if (fromChain?.name.toLowerCase() === 'polygon' && walletState.chainId !== 137) {
+        throw new Error('Please switch to Polygon network in your wallet');
+      }
       
       // Execute Polygon-Stellar cross-chain swap
       let result;

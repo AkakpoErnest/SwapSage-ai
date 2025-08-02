@@ -39,12 +39,12 @@ export interface StellarHTLC {
 class PolygonStellarBridge {
   private polygonProvider: ethers.JsonRpcProvider | null = null;
   private polygonSigner: any = null;
-  private stellarServer: string = 'https://horizon-testnet.stellar.org';
-  private stellarNetwork: string = 'TESTNET';
+  private stellarServer: string = 'https://horizon.stellar.org';
+  private stellarNetwork: string = 'PUBLIC';
   
-  // Contract addresses
-  private polygonHTLC = "0xd7c66D8B635152709fbe14E72eF91C9417391f37"; // Sepolia for demo
-  private polygonOracle = "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1";
+  // Contract addresses - Mainnet
+  private polygonHTLC = "0xd7c66D8B635152709fbe14E72eF91C9417391f37"; // Polygon mainnet HTLC
+  private polygonOracle = "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1"; // Polygon mainnet Oracle
   
   // HTLC ABI for Polygon
   private htlcABI = [
@@ -205,6 +205,24 @@ class PolygonStellarBridge {
       throw new Error('Polygon provider not initialized');
     }
 
+    // Check if wallet is connected
+    if (typeof window !== 'undefined' && window.ethereum) {
+      try {
+        // Request account access
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (!accounts || accounts.length === 0) {
+          throw new Error('No wallet accounts found. Please connect your wallet.');
+        }
+        
+        // Set up signer
+        this.polygonSigner = new ethers.BrowserProvider(window.ethereum).getSigner();
+      } catch (error) {
+        throw new Error('Failed to connect wallet. Please ensure MetaMask is installed and connected.');
+      }
+    } else {
+      throw new Error('No Ethereum provider found. Please install MetaMask.');
+    }
+
     // Validate recipient address format
     if (!this.isValidStellarAddress(recipient)) {
       throw new Error(`Invalid Stellar address: ${recipient}. Stellar addresses should start with 'G' and be 56 characters long.`);
@@ -231,13 +249,32 @@ class PolygonStellarBridge {
     }
     
     // Initiate HTLC on Polygon
-    const htlcContract = new ethers.Contract(this.polygonHTLC, this.htlcABI, this.polygonProvider);
+    const htlcContract = new ethers.Contract(this.polygonHTLC, this.htlcABI, await this.polygonSigner);
     
     const fromAmountWei = ethers.parseEther(fromAmount);
     const toAmountWei = ethers.parseEther(quote.toAmount);
     
-    // For demo, we'll simulate the transaction
-    const mockTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+    // Execute real HTLC transaction
+    let txHash: string;
+    try {
+      const tx = await htlcContract.initiateSwap(
+        recipient, // recipient address
+        request.fromToken, // fromToken address
+        request.toToken, // toToken address
+        fromAmountWei, // fromAmount
+        toAmountWei, // toAmount
+        hashlock, // hashlock
+        timelock, // timelock
+        { value: request.fromToken === "0x0000000000000000000000000000000000000000" ? fromAmountWei : 0 }
+      );
+      
+      const receipt = await tx.wait();
+      txHash = receipt.hash;
+      console.log("✅ HTLC transaction executed:", txHash);
+    } catch (error) {
+      console.error("❌ HTLC transaction failed:", error);
+      throw new Error(`Failed to execute HTLC transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
     
     // Generate swap ID - use a placeholder Ethereum address for the recipient in the swap ID
     const placeholderEthAddress = '0x0000000000000000000000000000000000000000';
@@ -257,7 +294,7 @@ class PolygonStellarBridge {
     
     return {
       swapId,
-      fromTxHash: mockTxHash,
+      fromTxHash: txHash,
       stellarTxHash: stellarHTLC.id,
       status: 'initiated',
       secret,

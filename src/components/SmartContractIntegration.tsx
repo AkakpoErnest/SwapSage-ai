@@ -49,7 +49,7 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
     { id: "arbitrum", name: "Arbitrum", icon: "🔵", chainId: 42161, rpcUrl: "https://arb1.arbitrum.io/rpc" },
     { id: "optimism", name: "Optimism", icon: "🔴", chainId: 10, rpcUrl: "https://mainnet.optimism.io" },
     { id: "avalanche", name: "Avalanche", icon: "🔴", chainId: 43114, rpcUrl: "https://api.avax.network/ext/bc/C/rpc" },
-    { id: "stellar", name: "Stellar", icon: "⭐", chainId: 100, rpcUrl: "https://horizon-testnet.stellar.org" },
+    { id: "stellar", name: "Stellar", icon: "⭐", chainId: 100, rpcUrl: "https://horizon.stellar.org" },
   ];
 
   const tokensByChain = {
