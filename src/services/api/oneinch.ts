@@ -56,15 +56,40 @@ class OneInchAPI {
         return this.getFallbackTokens(chainId);
       }
 
-      // Use CORS proxy to avoid browser CORS issues
-      const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-      const response = await fetch(`${corsProxy}${this.baseUrl}/swap/v6.0/${chainId}/tokens`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Accept': 'application/json',
-          'Origin': 'http://localhost:8080',
-        },
-      });
+      // Try multiple CORS proxies for reliability
+      const corsProxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://cors-anywhere.herokuapp.com/',
+        'https://thingproxy.freeboard.io/fetch/',
+        '' // Direct request (might work in some environments)
+      ];
+
+      let response: Response | null = null;
+      let lastError: Error | null = null;
+
+      for (const proxy of corsProxies) {
+        try {
+          const url = `${proxy}${this.baseUrl}/swap/v6.0/${chainId}/tokens`;
+          console.log(`Trying 1inch API with proxy: ${proxy ? 'CORS proxy' : 'direct'}`);
+          
+          response = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Accept': 'application/json',
+              'Origin': 'http://localhost:8080',
+            },
+          });
+          
+          if (response.ok) {
+            console.log('✅ 1inch API request successful');
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed with proxy ${proxy}:`, error);
+          lastError = error as Error;
+          response = null;
+        }
+      }
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -123,18 +148,40 @@ class OneInchAPI {
         disableEstimate: 'true',
       });
 
-      // Use CORS proxy to avoid browser CORS issues
-      const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-      const url = `${corsProxy}${this.baseUrl}/swap/v6.0/${chainId}/swap?${params}`;
-      console.log('Making 1inch API request to:', url);
+      // Try multiple CORS proxies for reliability
+      const corsProxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://cors-anywhere.herokuapp.com/',
+        'https://thingproxy.freeboard.io/fetch/',
+        '' // Direct request (might work in some environments)
+      ];
 
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Accept': 'application/json',
-          'Origin': 'http://localhost:8080',
-        },
-      });
+      let response: Response | null = null;
+      let lastError: Error | null = null;
+
+      for (const proxy of corsProxies) {
+        try {
+          const url = `${proxy}${this.baseUrl}/swap/v6.0/${chainId}/swap?${params}`;
+          console.log(`Making 1inch swap request with proxy: ${proxy ? 'CORS proxy' : 'direct'}`);
+          
+          response = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Accept': 'application/json',
+              'Origin': 'http://localhost:8080',
+            },
+          });
+          
+          if (response.ok) {
+            console.log('✅ 1inch swap request successful');
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed swap request with proxy ${proxy}:`, error);
+          lastError = error as Error;
+          response = null;
+        }
+      }
 
       console.log('1inch API response status:', response.status, response.statusText);
 

@@ -171,9 +171,9 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">System Dashboard</h2>
+          <h2 className="text-2xl font-bold">🟣⭐ Polygon-Stellar Bridge Dashboard</h2>
           <p className="text-muted-foreground">
-            Real-time monitoring of SwapSage AI Oracle
+            Real-time monitoring of SwapSage AI Oracle & Cross-Chain Bridge
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -276,8 +276,12 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
               <span className="font-mono text-sm">{stats.lastBlockNumber}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Network</span>
-              <span className="text-sm">Ethereum Sepolia</span>
+              <span className="text-sm text-muted-foreground">Primary Network</span>
+              <span className="text-sm">🟣 Polygon Mainnet</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Bridge Network</span>
+              <span className="text-sm">⭐ Stellar Testnet</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Connection</span>

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ArrowRight, Network, Coins, Clock, AlertCircle, CheckCircle, Wallet } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
-import { realCrossChainBridge } from "@/services/bridge/realCrossChainBridge";
+import { polygonStellarBridge } from "@/services/bridge/polygonStellarBridge";
 import { useToast } from "@/hooks/use-toast";
 import { ethers } from "ethers";
 import { Switch } from "@/components/ui/switch";
@@ -152,33 +152,18 @@ const BridgeInterface = () => {
     }
   }, [walletState.isConnected, walletState.address, recipient]);
 
-  // Initialize real cross-chain bridge
+  // Initialize Polygon-Stellar bridge
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum) {
-      const initializeRealBridge = async () => {
+      const initializePolygonStellarBridge = async () => {
         try {
-          // Initialize with RPC providers
-          const providers = {
-            11155111: "https://sepolia.infura.io/v3/your-project-id", // Sepolia
-            137: "https://polygon-rpc.com", // Polygon
-            1: "https://mainnet.infura.io/v3/your-project-id", // Ethereum
-          };
-
-          // For demo purposes, we'll use auto-generated wallets
-          // In production, users would provide their private keys
-          const privateKeys = {
-            11155111: "", // Will be auto-generated
-            137: "", // Will be auto-generated
-            1: "", // Will be auto-generated
-          };
-
-          await realCrossChainBridge.initialize(providers, privateKeys);
-          console.log("✅ Real cross-chain bridge initialized");
+          await polygonStellarBridge.initialize("https://polygon-rpc.com", "TESTNET");
+          console.log("✅ Polygon-Stellar bridge initialized");
         } catch (error) {
-          console.error('Failed to initialize real bridge:', error);
+          console.error('Failed to initialize Polygon-Stellar bridge:', error);
         }
       };
-      initializeRealBridge();
+      initializePolygonStellarBridge();
     }
   }, []);
 
@@ -208,17 +193,27 @@ const BridgeInterface = () => {
   const calculateBridgeQuote = async () => {
     if (!fromChain || !toChain || !fromToken || !amount) return;
 
+    // Check if same token is selected
+    if (fromToken.address === toToken?.address) {
+      toast({
+        title: "Selection Error",
+        description: "Please select different tokens for cross-chain bridge",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsCalculating(true);
       
-      const quote = await realCrossChainBridge.getBridgeQuote({
-        fromChainId: fromChain.id,
-        toChainId: toChain.id,
+      const quote = await polygonStellarBridge.getBridgeQuote({
+        fromChain: fromChain.name.toLowerCase() as 'polygon' | 'stellar',
+        toChain: toChain.name.toLowerCase() as 'polygon' | 'stellar',
         fromToken: fromToken.address,
         toToken: toToken?.address || "0x0000000000000000000000000000000000000000",
         fromAmount: amount,
         recipient: recipient || walletState.address || "",
-        autoSelectWallet
+        use1inchFusion: fromChain.name.toLowerCase() === 'polygon'
       });
       
       setBridgeQuote(quote);
@@ -305,16 +300,31 @@ const BridgeInterface = () => {
     try {
       setBridgeStatus('processing');
       
-      // Execute real on-chain cross-chain swap
-      const result = await realCrossChainBridge.executeCrossChainSwap({
-        fromChainId: fromChain.id,
-        toChainId: toChain.id,
-        fromToken: fromToken.address,
-        toToken: toToken.address,
-        fromAmount: amount,
-        recipient: finalRecipient,
-        autoSelectWallet
-      });
+      // Execute Polygon-Stellar cross-chain swap
+      let result;
+      if (fromChain.name.toLowerCase() === 'polygon' && toChain.name.toLowerCase() === 'stellar') {
+        result = await polygonStellarBridge.executePolygonToStellarSwap({
+          fromChain: 'polygon',
+          toChain: 'stellar',
+          fromToken: fromToken.address,
+          toToken: toToken.address,
+          fromAmount: amount,
+          recipient: finalRecipient,
+          use1inchFusion: true
+        });
+      } else if (fromChain.name.toLowerCase() === 'stellar' && toChain.name.toLowerCase() === 'polygon') {
+        result = await polygonStellarBridge.executeStellarToPolygonSwap({
+          fromChain: 'stellar',
+          toChain: 'polygon',
+          fromToken: fromToken.address,
+          toToken: toToken.address,
+          fromAmount: amount,
+          recipient: finalRecipient,
+          use1inchFusion: true
+        });
+      } else {
+        throw new Error('Only Polygon ↔ Stellar swaps are supported');
+      }
       
       // Store generated wallet info if auto-selected
       if (autoSelectWallet && result.swapId) {
@@ -394,10 +404,10 @@ const BridgeInterface = () => {
       <div className="text-center">
         <h2 className="text-3xl font-bold mb-2 flex items-center justify-center gap-2">
           <Network className="w-8 h-8 text-neon-cyan" />
-          Cross-Chain Bridge
+          🟣⭐ Polygon ↔ Stellar Bridge
         </h2>
         <p className="text-muted-foreground">
-          Bridge tokens between different blockchain networks securely
+          Secure cross-chain atomic swaps with 1inch Fusion integration
         </p>
       </div>
 
