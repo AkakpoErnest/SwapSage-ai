@@ -111,9 +111,9 @@
 ### **🔧 ALL WORKING BUTTONS**
 
 #### **✅ Navigation & Hero Section (4/4 Working)**
-1. **Hero "Start Swapping"** - ✅ Switches to swap tab
-2. **Hero "Try AI Chat"** - ✅ Switches to AI chat tab  
-3. **AI Assistant "Start AI Chat"** - ✅ Switches to AI chat tab
+1. **Hero "Start Swapping"** - ✅ Switches to swap tab + smooth scroll to interface
+2. **Hero "Try AI Chat"** - ✅ Switches to AI chat tab + smooth scroll to interface
+3. **AI Assistant "Start AI Chat"** - ✅ Switches to AI chat tab + smooth scroll to interface
 4. **Tab Navigation (6 tabs)** - ✅ All tabs working
 
 #### **✅ Header Component (8/8 Working)**
@@ -159,6 +159,7 @@
 
 #### **1. Smooth Scrolling Navigation**
 - Header buttons now smoothly scroll to main interface
+- Hero section buttons now smoothly scroll to main interface
 - Better user experience with visual feedback
 
 #### **2. Comprehensive Error Handling**
