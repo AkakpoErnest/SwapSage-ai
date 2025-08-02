@@ -28,6 +28,8 @@ export interface SwapQuote {
   fee: string;
   slippage: number;
   estimatedGas: string;
+  route?: any[];
+  priceImpact?: number;
 }
 
 export interface SwapExecution {

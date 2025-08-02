@@ -1,239 +1,240 @@
 import { useState, useEffect } from "react";
-import { ethers } from "ethers";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  Activity, 
-  WalletIcon, 
   Search, 
-  ExternalLink, 
   Download, 
-  Filter,
-  CheckCircle,
-  Clock,
-  XCircle,
+  ExternalLink, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
   Loader2,
+  Activity,
   Network,
-  Coins
+  Coins,
+  WalletIcon,
+  RefreshCw,
+  Shield,
+  Key
 } from "lucide-react";
-import { useWallet } from "@/hooks/useWallet";
+import { useWalletContext } from "@/contexts/WalletContext";
 import { useToast } from "@/hooks/use-toast";
-import { transactionFetcher } from "@/services/blockchain/transactionFetcher";
+import { ethers } from "ethers";
 
 interface Transaction {
   id: string;
-  type: 'swap' | 'bridge';
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  type: 'swap' | 'bridge' | 'htlc' | 'refund' | 'claim';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'expired';
   fromToken: string;
   toToken: string;
   fromAmount: string;
   toAmount: string;
-  fromChain?: string;
-  toChain?: string;
+  fromChain: number;
+  toChain: number;
+  sender: string;
   recipient: string;
   timestamp: number;
-  txHash?: string;
+  txHash: string;
+  blockNumber: number;
+  gasUsed?: string;
+  gasPrice?: string;
   error?: string;
+  secretPhrase?: string;
+  hashlock?: string;
+  timelock?: number;
 }
 
 const TransactionHistory = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const { walletState, connectEthereum, connectStellar, disconnect } = useWallet();
+  const [stats, setStats] = useState({
+    total: 0,
+    completed: 0,
+    pending: 0,
+    failed: 0,
+    totalVolume: "0",
+  });
+
+  const { walletState } = useWalletContext();
   const { toast } = useToast();
-
-  // Sample transactions for demo purposes
-  const sampleTransactions: Transaction[] = [
-    {
-      id: "1",
-      type: "swap",
-      status: "completed",
-      fromToken: "MATIC",
-      toToken: "USDC",
-      fromAmount: "100.0",
-      toAmount: "80.0",
-      fromChain: "polygon",
-      toChain: "polygon",
-      recipient: walletState.address || "0xf9c3...76cb",
-      timestamp: Date.now() - 3600000, // 1 hour ago
-      txHash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-    },
-    {
-      id: "2",
-      type: "bridge",
-      status: "processing",
-      fromToken: "MATIC",
-      toToken: "XLM",
-      fromAmount: "50.0",
-      toAmount: "125.0",
-      fromChain: "polygon",
-      toChain: "stellar",
-      recipient: walletState.address || "0xf9c3...76cb",
-      timestamp: Date.now() - 1800000, // 30 minutes ago
-      txHash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
-    },
-    {
-      id: "3",
-      type: "swap",
-      status: "completed",
-      fromToken: "USDC",
-      toToken: "WBTC",
-      fromAmount: "1000.0",
-      toAmount: "0.022",
-      fromChain: "polygon",
-      toChain: "polygon",
-      recipient: walletState.address || "0xf9c3...76cb",
-      timestamp: Date.now() - 7200000, // 2 hours ago
-      txHash: "0x7890abcdef1234567890abcdef1234567890abcdef1234567890abcdef123456"
-    }
-  ];
-
-  const loadTransactionHistory = async () => {
-    if (!walletState.address) {
-      setTransactions([]);
-      setFilteredTransactions([]);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Initialize providers for Polygon and Ethereum
-      await transactionFetcher.initializeProvider(137, 'https://polygon-rpc.com');
-      await transactionFetcher.initializeProvider(1, 'https://eth.llamarpc.com');
-      
-      // Fetch real on-chain transactions
-      const polygonTxs = await transactionFetcher.fetchTransactions(walletState.address, 137);
-      const ethereumTxs = await transactionFetcher.fetchTransactions(walletState.address, 1);
-      
-      // Convert to our transaction format
-      const allTransactions: Transaction[] = [];
-      
-      // Process Polygon transactions
-      polygonTxs.forEach(tx => {
-        allTransactions.push({
-          id: tx.hash,
-          type: 'swap',
-          status: tx.status === 'success' ? 'completed' : 'failed',
-          fromToken: 'MATIC',
-          toToken: 'USDC',
-          fromAmount: ethers.formatEther(tx.value),
-          toAmount: '0', // Would need to parse logs for actual swap amounts
-          fromChain: 'polygon',
-          toChain: 'polygon',
-          recipient: tx.to,
-          timestamp: tx.timestamp * 1000,
-          txHash: tx.hash,
-          error: tx.error
-        });
-      });
-      
-      // Process Ethereum transactions
-      ethereumTxs.forEach(tx => {
-        allTransactions.push({
-          id: tx.hash,
-          type: 'bridge',
-          status: tx.status === 'success' ? 'completed' : 'failed',
-          fromToken: 'ETH',
-          toToken: 'XLM',
-          fromAmount: ethers.formatEther(tx.value),
-          toAmount: '0',
-          fromChain: 'ethereum',
-          toChain: 'stellar',
-          recipient: tx.to,
-          timestamp: tx.timestamp * 1000,
-          txHash: tx.hash,
-          error: tx.error
-        });
-      });
-      
-      // Sort by timestamp (newest first)
-      const sortedTransactions = allTransactions.sort((a, b) => b.timestamp - a.timestamp);
-      
-      setTransactions(sortedTransactions);
-      setFilteredTransactions(sortedTransactions);
-      
-      // Store in localStorage for caching
-      localStorage.setItem(`transactions_${walletState.address}`, JSON.stringify(sortedTransactions));
-      
-    } catch (error) {
-      console.error('Failed to load transaction history:', error);
-      toast({
-        title: "Error Loading Transactions",
-        description: "Failed to fetch on-chain transaction data. Please try again.",
-        variant: "destructive",
-      });
-      
-      // Fallback to sample data if on-chain fetch fails
-      setTransactions(sampleTransactions);
-      setFilteredTransactions(sampleTransactions);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (walletState.isConnected && walletState.address) {
-      // Immediately load transaction history when wallet connects
       loadTransactionHistory();
-      
-      // Set up real-time updates for new transactions
-      const interval = setInterval(() => {
-        if (walletState.isConnected && walletState.address) {
-          loadTransactionHistory();
-        }
-      }, 10000); // Check every 10 seconds for new transactions
-      
-      return () => clearInterval(interval);
-    } else {
-      // Clear transactions when wallet disconnects
-      setTransactions([]);
-      setFilteredTransactions([]);
     }
   }, [walletState.isConnected, walletState.address]);
 
   useEffect(() => {
     applyFilters();
-  }, [transactions, searchTerm, statusFilter, typeFilter]);
+  }, [transactions, searchTerm]);
+
+  const loadTransactionHistory = async () => {
+    if (!walletState.address || !walletState.provider) return;
+
+    try {
+      setIsLoading(true);
+      
+      // Get current block number for recent transactions
+      const currentBlock = await walletState.provider.getBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 10000); // Last 10k blocks
+      
+      // Fetch on-chain transactions
+      const onChainTransactions = await fetchOnChainTransactions(walletState.address, fromBlock, currentBlock);
+      
+      // Add HTLC transactions from local storage (for demo purposes)
+      const htlcTransactions = getHTLCTransactions();
+      
+      // Combine all transactions
+      const allTransactions: Transaction[] = [
+        ...onChainTransactions,
+        ...htlcTransactions
+      ];
+      
+      // Sort by timestamp (newest first)
+      allTransactions.sort((a, b) => b.timestamp - a.timestamp);
+      
+      setTransactions(allTransactions);
+      calculateStats(allTransactions);
+      
+      console.log(`📊 Loaded ${allTransactions.length} on-chain transactions`);
+      
+      if (allTransactions.length === 0) {
+        toast({
+          title: "No Transactions Found",
+          description: "No on-chain transactions found for this address. Try making a swap first!",
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error loading transaction history:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load on-chain transaction history. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchOnChainTransactions = async (address: string, fromBlock: number, toBlock: number): Promise<Transaction[]> => {
+    const transactions: Transaction[] = [];
+    
+    try {
+      // Get transaction history from provider
+      const history = await walletState.provider!.getHistory(address, fromBlock, toBlock);
+      
+      for (const tx of history) {
+        try {
+          const receipt = await tx.wait();
+          const block = await walletState.provider!.getBlock(tx.blockNumber!);
+          
+          // Determine transaction type based on contract interaction
+          const txType = determineTransactionType(tx, receipt);
+          
+          transactions.push({
+            id: tx.hash,
+            type: txType,
+            status: receipt.status === 1 ? 'completed' : 'failed',
+            fromToken: 'MATIC', // Default for Polygon
+            toToken: 'Unknown',
+            fromAmount: ethers.formatEther(tx.value || 0),
+            toAmount: '0',
+            fromChain: 137, // Polygon
+            toChain: 137,
+            sender: tx.from,
+            recipient: tx.to || '',
+            timestamp: block?.timestamp || Date.now(),
+            txHash: tx.hash,
+            blockNumber: tx.blockNumber!,
+            gasUsed: receipt.gasUsed?.toString(),
+            gasPrice: tx.gasPrice?.toString(),
+            error: receipt.status === 0 ? 'Transaction failed' : undefined,
+          });
+        } catch (error) {
+          console.error('Error processing transaction:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching transaction history:', error);
+    }
+    
+    return transactions;
+  };
+
+  const determineTransactionType = (tx: any, receipt: any): 'swap' | 'bridge' | 'htlc' | 'refund' | 'claim' => {
+    // Check for HTLC contract interactions
+    const htlcContracts = [
+      '0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb', // Our HTLC contract
+      '0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e', // Our Oracle contract
+    ];
+    
+    if (htlcContracts.includes(tx.to?.toLowerCase())) {
+      // Check function signature to determine HTLC operation
+      if (tx.data?.includes('initiateSwap')) return 'htlc';
+      if (tx.data?.includes('withdraw')) return 'claim';
+      if (tx.data?.includes('refund')) return 'refund';
+      return 'bridge';
+    }
+    
+    // Check for DEX interactions
+    const dexContracts = [
+      '0x1111111254fb6c44bAC0beD2854e76F90643097d', // 1inch router
+      '0xE592427A0AEce92De3Edee1F18E0157C05861564', // Uniswap V3 router
+    ];
+    
+    if (dexContracts.includes(tx.to?.toLowerCase())) {
+      return 'swap';
+    }
+    
+    return 'swap'; // Default
+  };
+
+  const getHTLCTransactions = (): Transaction[] => {
+    // Get HTLC transactions from localStorage (for demo)
+    const stored = localStorage.getItem('htlc_transactions');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (error) {
+        console.error('Error parsing HTLC transactions:', error);
+      }
+    }
+    return [];
+  };
 
   const calculateStats = (txs: Transaction[]) => {
     const total = txs.length;
     const completed = txs.filter(tx => tx.status === 'completed').length;
-    const processing = txs.filter(tx => tx.status === 'processing').length;
+    const pending = txs.filter(tx => tx.status === 'pending' || tx.status === 'processing').length;
     const failed = txs.filter(tx => tx.status === 'failed').length;
-    const totalVolume = txs.reduce((sum, tx) => sum + parseFloat(tx.fromAmount), 0);
+    
+    const totalVolume = txs
+      .filter(tx => tx.status === 'completed')
+      .reduce((sum, tx) => sum + parseFloat(tx.fromAmount), 0)
+      .toFixed(2);
 
-    return { total, completed, processing, failed, totalVolume };
+    setStats({ total, completed, pending, failed, totalVolume });
   };
 
   const applyFilters = () => {
-    let filtered = transactions;
+    let filtered = [...transactions];
 
-    // Apply search filter
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(tx => 
-        tx.fromToken.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.toToken.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.txHash?.toLowerCase().includes(searchTerm.toLowerCase())
+        tx.id.toLowerCase().includes(searchLower) ||
+        tx.fromToken.toLowerCase().includes(searchLower) ||
+        tx.toToken.toLowerCase().includes(searchLower) ||
+        tx.txHash?.toLowerCase().includes(searchLower) ||
+        tx.recipient.toLowerCase().includes(searchLower) ||
+        tx.type.toLowerCase().includes(searchLower)
       );
-    }
-
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(tx => tx.status === statusFilter);
-    }
-
-    // Apply type filter
-    if (typeFilter !== "all") {
-      filtered = filtered.filter(tx => tx.type === typeFilter);
     }
 
     setFilteredTransactions(filtered);
@@ -245,23 +246,31 @@ const TransactionHistory = () => {
         return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'processing':
         return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      case 'pending':
+        return <Clock className="w-4 h-4 text-yellow-500" />;
       case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />;
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      case 'expired':
+        return <AlertCircle className="w-4 h-4 text-orange-500" />;
       default:
-        return <Clock className="w-4 h-4 text-muted-foreground" />;
+        return <Clock className="w-4 h-4 text-gray-500" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-500/20 text-green-500 border-green-500/30';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'processing':
-        return 'bg-blue-500/20 text-blue-500 border-blue-500/30';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'failed':
-        return 'bg-red-500/20 text-red-500 border-red-500/30';
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'expired':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       default:
-        return 'bg-muted/20 text-muted-foreground border-muted/30';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -270,14 +279,20 @@ const TransactionHistory = () => {
       case 'bridge':
         return <Network className="w-4 h-4 text-purple-500" />;
       case 'swap':
-        return <Coins className="w-4 h-4 text-cyan-500" />;
+        return <Coins className="w-4 h-4 text-blue-500" />;
+      case 'htlc':
+        return <Shield className="w-4 h-4 text-green-500" />;
+      case 'refund':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      case 'claim':
+        return <Key className="w-4 h-4 text-yellow-500" />;
       default:
-        return <Activity className="w-4 h-4 text-muted-foreground" />;
+        return <Activity className="w-4 h-4 text-gray-500" />;
     }
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('en-US', {
+    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -297,20 +312,8 @@ const TransactionHistory = () => {
   };
 
   const openTransactionExplorer = (txHash: string) => {
-    // Use appropriate explorer based on chain
-    const isPolygon = walletState.network?.toLowerCase().includes('polygon') || 
-                     walletState.chainId === 137;
-    const isStellar = walletState.network?.toLowerCase().includes('stellar') || 
-                     walletState.chainId === 100;
-    
-    if (isPolygon) {
-      window.open(`https://polygonscan.com/tx/${txHash}`, '_blank');
-    } else if (isStellar) {
-      window.open(`https://stellar.expert/explorer/testnet/tx/${txHash}`, '_blank');
-    } else {
-      // Default to Polygon explorer
-      window.open(`https://polygonscan.com/tx/${txHash}`, '_blank');
-    }
+    // Use PolygonScan for Polygon transactions
+    window.open(`https://polygonscan.com/tx/${txHash}`, '_blank');
   };
 
   const exportHistory = async (format: 'json' | 'csv' = 'json') => {
@@ -319,9 +322,12 @@ const TransactionHistory = () => {
     try {
       let exportData: string;
       
-      if (format === 'csv') {
-        const headers = ['ID', 'Type', 'Status', 'From Token', 'To Token', 'From Amount', 'To Amount', 'Date', 'TX Hash'];
-        const rows = filteredTransactions.map(tx => [
+      if (format === 'json') {
+        exportData = JSON.stringify(transactions, null, 2);
+      } else {
+        // CSV format
+        const headers = ['ID', 'Type', 'Status', 'From Token', 'To Token', 'From Amount', 'To Amount', 'From Chain', 'To Chain', 'Sender', 'Recipient', 'Timestamp', 'Tx Hash', 'Block Number', 'Secret Phrase'];
+        const csvData = transactions.map(tx => [
           tx.id,
           tx.type,
           tx.status,
@@ -329,13 +335,17 @@ const TransactionHistory = () => {
           tx.toToken,
           tx.fromAmount,
           tx.toAmount,
-          formatDate(tx.timestamp),
-          tx.txHash || ''
+          tx.fromChain,
+          tx.toChain,
+          tx.sender,
+          tx.recipient,
+          new Date(tx.timestamp * 1000).toISOString(),
+          tx.txHash,
+          tx.blockNumber,
+          tx.secretPhrase || ''
         ]);
         
-        exportData = [headers, ...rows].map(row => row.join(',')).join('\n');
-      } else {
-        exportData = JSON.stringify(filteredTransactions, null, 2);
+        exportData = [headers, ...csvData].map(row => row.join(',')).join('\n');
       }
       
       const blob = new Blob([exportData], { 
@@ -344,7 +354,7 @@ const TransactionHistory = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `transaction-history-${Date.now()}.${format}`;
+      a.download = `onchain-transaction-history-${Date.now()}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -352,7 +362,7 @@ const TransactionHistory = () => {
 
       toast({
         title: "Export Successful",
-        description: `Transaction history exported as ${format.toUpperCase()}`,
+        description: `On-chain transaction history exported as ${format.toUpperCase()}`,
       });
     } catch (error) {
       console.error('Export failed:', error);
@@ -372,348 +382,216 @@ const TransactionHistory = () => {
             <Activity className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h3 className="text-xl font-semibold text-white mb-2">🟣⭐ Polygon-Stellar Transaction History</h3>
+            <h3 className="text-xl font-semibold text-white mb-2">Connect Your Wallet</h3>
             <p className="text-muted-foreground mb-4">
               Connect your wallet to view your on-chain transaction history
             </p>
-            <div className="flex gap-2 justify-center">
-              <Button 
-                onClick={async () => {
-                  try {
-                    await connectEthereum();
-                  } catch (error) {
-                    console.error('Failed to connect wallet:', error);
-                    toast({
-                      title: "Connection Failed",
-                      description: "Failed to connect wallet. Please try again.",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                className="bg-gradient-primary hover:bg-gradient-primary/80"
-              >
-                <WalletIcon className="w-4 h-4 mr-2" />
-                Connect MetaMask
-              </Button>
-              <Button 
-                onClick={async () => {
-                  try {
-                    await connectStellar();
-                  } catch (error) {
-                    console.error('Failed to connect Stellar wallet:', error);
-                    toast({
-                      title: "Connection Failed",
-                      description: "Failed to connect Stellar wallet. Please try again.",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                variant="outline"
-                className="border-neon-purple/40 text-neon-purple hover:bg-neon-purple/10"
-              >
-                <WalletIcon className="w-4 h-4 mr-2" />
-                Connect Freighter
-              </Button>
-            </div>
+            <Button 
+              onClick={async () => {
+                try {
+                  const { connectEthereum } = useWalletContext();
+                  await connectEthereum();
+                } catch (error) {
+                  console.error('Failed to connect wallet:', error);
+                }
+              }}
+              className="bg-gradient-primary hover:bg-gradient-primary/80"
+            >
+              <WalletIcon className="w-4 h-4 mr-2" />
+              Connect Wallet
+            </Button>
           </div>
         </div>
       </Card>
     );
   }
 
-  const stats = calculateStats(transactions);
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">🟣⭐ Polygon-Stellar Transaction History</h2>
+          <h2 className="text-3xl font-bold mb-2 flex items-center gap-2">
+            <Activity className="w-8 h-8 text-neon-cyan" />
+            On-Chain Transaction History
+          </h2>
           <p className="text-muted-foreground">
-            {isLoading ? 'Fetching on-chain transaction data...' : 'View and manage your cross-chain swap and bridge transactions'}
+            View your real on-chain swap and bridge transactions from the blockchain
           </p>
-          {walletState.address && (
-            <div className="flex items-center gap-2 mt-2">
-              <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse"></div>
-              <span className="text-xs text-neon-green">Connected: {walletState.address.slice(0, 6)}...{walletState.address.slice(-4)}</span>
-            </div>
-          )}
         </div>
         <div className="flex gap-2">
           <Button
-            variant="outline"
             onClick={loadTransactionHistory}
             disabled={isLoading}
-            className="border-neon-green/40 text-neon-green hover:bg-neon-green/10"
+            variant="outline"
+            className="border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/10"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            {isLoading ? 'Loading...' : 'Refresh'}
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            Refresh
           </Button>
           <Button
-            variant="outline"
             onClick={() => exportHistory('json')}
+            variant="outline"
             className="border-neon-cyan/40 text-neon-cyan hover:bg-neon-cyan/10"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export JSON
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => exportHistory('csv')}
-            className="border-neon-purple/40 text-neon-purple hover:bg-neon-purple/10"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            Export
           </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4 bg-gradient-card border-neon-green/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Transactions</p>
-              <p className="text-2xl font-bold text-white">{stats.total}</p>
-            </div>
-            <Activity className="w-8 h-8 text-neon-green" />
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card className="p-4 bg-gradient-card border-neon-cyan/20">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-neon-cyan">{stats.total}</div>
+            <div className="text-sm text-muted-foreground">Total</div>
           </div>
         </Card>
         <Card className="p-4 bg-gradient-card border-green-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold text-green-500">{stats.completed}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-500" />
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-500">{stats.completed}</div>
+            <div className="text-sm text-muted-foreground">Completed</div>
           </div>
         </Card>
-        <Card className="p-4 bg-gradient-card border-blue-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Processing</p>
-              <p className="text-2xl font-bold text-blue-500">{stats.processing}</p>
-            </div>
-            <Loader2 className="w-8 h-8 text-blue-500" />
+        <Card className="p-4 bg-gradient-card border-yellow-500/20">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-yellow-500">{stats.pending}</div>
+            <div className="text-sm text-muted-foreground">Pending</div>
           </div>
         </Card>
         <Card className="p-4 bg-gradient-card border-red-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Failed</p>
-              <p className="text-2xl font-bold text-red-500">{stats.failed}</p>
-            </div>
-            <XCircle className="w-8 h-8 text-red-500" />
+          <div className="text-center">
+            <div className="text-2xl font-bold text-red-500">{stats.failed}</div>
+            <div className="text-sm text-muted-foreground">Failed</div>
+          </div>
+        </Card>
+        <Card className="p-4 bg-gradient-card border-purple-500/20">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-500">${stats.totalVolume}</div>
+            <div className="text-sm text-muted-foreground">Volume</div>
           </div>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card className="p-4 bg-gradient-card border-neon-cyan/20">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Search transactions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-background/50"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="swap">Swaps</SelectItem>
-                <SelectItem value="bridge">Bridges</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      {/* Search */}
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <Input
+            placeholder="Search transactions by hash, token, or type..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-background/50"
+          />
         </div>
-      </Card>
+      </div>
 
       {/* Transactions Table */}
       <Card className="bg-gradient-card border-neon-cyan/20">
-        {isLoading ? (
-          <div className="p-6 text-center">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-            <span>Loading transaction history...</span>
-          </div>
-        ) : filteredTransactions.length === 0 ? (
-          <div className="p-6 text-center text-muted-foreground">
-            No transactions found
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>From</TableHead>
-                <TableHead>To</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTransactions.slice(0, 20).map((tx) => (
-                <TableRow key={tx.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {getTypeIcon(tx.type)}
-                      <span className="capitalize">{tx.type}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getStatusColor(tx.status)}>
-                      {getStatusIcon(tx.status)}
-                      <span className="ml-1 capitalize">{tx.status}</span>
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{tx.fromToken}</span>
-                      {tx.fromChain && (
-                        <span className="text-xs text-muted-foreground">Chain: {tx.fromChain}</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{tx.toToken}</span>
-                      {tx.toChain && (
-                        <span className="text-xs text-muted-foreground">Chain: {tx.toChain}</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{formatAmount(tx.fromAmount)}</span>
-                      {tx.toAmount && tx.toAmount !== tx.fromAmount && (
-                        <span className="text-xs text-muted-foreground">→ {formatAmount(tx.toAmount)}</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{formatDate(tx.timestamp)}</span>
-                  </TableCell>
-                  <TableCell>
-                    {tx.txHash && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openTransactionExplorer(tx.txHash!)}
-                        className="text-neon-cyan hover:text-neon-cyan/80"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </TableCell>
+        <div className="p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin mr-2" />
+              <span>Loading transaction history...</span>
+            </div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No transactions found. Try making a swap or bridge transaction first!
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>From</TableHead>
+                  <TableHead>To</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
-
-      {/* Persistent Connection Status */}
-      <Card className="bg-gradient-card border-green-500/20">
-        <div className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <div>
-                <h4 className="font-medium text-white">Wallet Connected</h4>
-                <p className="text-sm text-muted-foreground">
-                  {walletState.address ? `${walletState.address.slice(0, 6)}...${walletState.address.slice(-4)}` : 'Unknown address'}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-green-500 border-green-500/30">
-                {walletState.network || 'Connected'}
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  disconnect();
-                  toast({
-                    title: "Wallet Disconnected",
-                    description: "Successfully disconnected wallet",
-                  });
-                }}
-                className="text-muted-foreground hover:text-red-500"
-              >
-                Disconnect
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Quick Access Section */}
-      <Card className="bg-gradient-card border-neon-cyan/20">
-        <div className="p-4">
-          <h4 className="font-medium text-white mb-3">Quick Access</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("completed");
-                setTypeFilter("all");
-              }}
-              className="border-green-500/30 text-green-500 hover:bg-green-500/10"
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Show Completed
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("all");
-                setTypeFilter("bridge");
-              }}
-              className="border-purple-500/30 text-purple-500 hover:bg-purple-500/10"
-            >
-              <Network className="w-4 h-4 mr-2" />
-              Show Bridges
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("all");
-                setTypeFilter("all");
-              }}
-              className="border-cyan-500/30 text-cyan-500 hover:bg-cyan-500/10"
-            >
-              <Activity className="w-4 h-4 mr-2" />
-              Show All
-            </Button>
-          </div>
+              </TableHeader>
+              <TableBody>
+                {filteredTransactions.map((tx) => (
+                  <TableRow key={tx.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getTypeIcon(tx.type)}
+                        <Badge variant="outline" className="capitalize">
+                          {tx.type}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(tx.status)}
+                        <Badge className={getStatusColor(tx.status)}>
+                          {tx.status}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div className="font-medium">{tx.fromToken}</div>
+                        <div className="text-muted-foreground">Chain {tx.fromChain}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div className="font-medium">{tx.toToken}</div>
+                        <div className="text-muted-foreground">Chain {tx.toChain}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div className="font-medium">{formatAmount(tx.fromAmount)} {tx.fromToken}</div>
+                        {tx.toAmount !== '0' && (
+                          <div className="text-muted-foreground">
+                            → {formatAmount(tx.toAmount)} {tx.toToken}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm text-muted-foreground">
+                        {formatDate(tx.timestamp)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openTransactionExplorer(tx.txHash)}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </Button>
+                        {tx.secretPhrase && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(tx.secretPhrase!);
+                              toast({
+                                title: "Secret Phrase Copied",
+                                description: "Secret phrase copied to clipboard",
+                              });
+                            }}
+                          >
+                            <Key className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </Card>
     </div>

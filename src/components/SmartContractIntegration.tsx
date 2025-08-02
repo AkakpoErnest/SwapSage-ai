@@ -122,28 +122,94 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
     
     setIsLoading(true);
     try {
-      // Get live Polygon price feeds
       const tokenInfo = tokens.find(t => t.symbol === selectedToken);
       if (!tokenInfo) {
         throw new Error("Token not found");
       }
 
-      // Map token addresses to symbols for API calls (Polygon Mainnet)
-      const tokenSymbols: Record<string, string> = {
-        '0x0000000000000000000000000000000000000000': 'matic', // MATIC (native)
-        '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 'matic', // WMATIC
-        '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': 'usd-coin', // USDC
-        '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': 'dai', // DAI
-        '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': 'wrapped-bitcoin', // WBTC
-        '0xc2132D05D31c914a87C6611C10748AEb04B58e8F': 'tether', // USDT
-      };
-
-      const symbol = tokenSymbols[tokenInfo.address];
-      if (!symbol) {
-        throw new Error(`No symbol mapping for token ${selectedToken}`);
+      const currentChain = chains.find(c => c.id === selectedChain);
+      if (!currentChain) {
+        throw new Error("Chain not found");
       }
 
-      // Try CoinGecko API first (free, reliable)
+      // Map token addresses to CoinGecko symbols for different chains
+      const tokenSymbols: Record<string, Record<string, string>> = {
+        ethereum: {
+          '0x0000000000000000000000000000000000000000': 'ethereum',
+          '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2': 'ethereum',
+          '0xA0b86a33E6441b8C4C8C8C8C8C8C8C8C8C8C8C8': 'usd-coin',
+          '0x6B175474E89094C44Da98b954EedeAC495271d0F': 'dai',
+          '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': 'wrapped-bitcoin',
+          '0xdAC17F958D2ee523a2206206994597C13D831ec7': 'tether',
+        },
+        polygon: {
+          '0x0000000000000000000000000000000000000000': 'matic',
+          '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270': 'matic',
+          '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': 'usd-coin',
+          '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': 'dai',
+          '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6': 'wrapped-bitcoin',
+          '0xc2132D05D31c914a87C6611C10748AEb04B58e8F': 'tether',
+        },
+        bsc: {
+          '0x0000000000000000000000000000000000000000': 'binancecoin',
+          '0xbb4CdB9CBd36B01bD1cBaEF2aFd8d6f6f4f4f4f4': 'binancecoin',
+          '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d': 'usd-coin',
+          '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56': 'binance-usd',
+          '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82': 'pancakeswap-token',
+        },
+        arbitrum: {
+          '0x0000000000000000000000000000000000000000': 'ethereum',
+          '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1': 'ethereum',
+          '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8': 'usd-coin',
+          '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9': 'tether',
+        },
+        optimism: {
+          '0x0000000000000000000000000000000000000000': 'ethereum',
+          '0x4200000000000000000000000000000000000006': 'ethereum',
+          '0x7F5c764cBc14f9669B88837ca1490cCa17c31607': 'usd-coin',
+          '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58': 'tether',
+        },
+        avalanche: {
+          '0x0000000000000000000000000000000000000000': 'avalanche-2',
+          '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7': 'avalanche-2',
+          '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E': 'usd-coin',
+          '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7': 'tether',
+        },
+        stellar: {
+          'native': 'stellar',
+          'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34KUEKUS': 'usd-coin',
+          'USDT:GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZCCVTJ6': 'tether',
+        },
+      };
+
+      const symbol = tokenSymbols[selectedChain]?.[tokenInfo.address];
+      if (!symbol) {
+        throw new Error(`No symbol mapping for token ${selectedToken} on ${selectedChain}`);
+      }
+
+      // Try 1inch API first (network-specific pricing)
+      if (selectedChain !== 'stellar') {
+        try {
+          const response = await fetch(`https://api.1inch.dev/price/v1.1/${currentChain.chainId}/${tokenInfo.address}`);
+          const data = await response.json();
+          
+          if (data && data.price) {
+            const livePrice: OraclePrice = {
+              token: selectedToken,
+              price: data.price.toString(),
+              timestamp: Date.now(),
+              decimals: 8
+            };
+            setCurrentPrice(livePrice);
+            console.log(`✅ Live ${currentChain.name} price from 1inch for ${selectedToken}: $${data.price}`);
+            return;
+          }
+        } catch (oneinchError) {
+          console.warn('1inch API failed, trying CoinGecko:', oneinchError);
+        }
+      }
+
+      // Try CoinGecko API as backup (free, reliable)
       try {
         const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd&include_24hr_change=true`);
         const data = await response.json();
@@ -156,46 +222,41 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
             decimals: 8
           };
           setCurrentPrice(livePrice);
-          console.log(`✅ Live Polygon price for ${selectedToken}: $${data[symbol].usd}`);
+          console.log(`✅ Live ${currentChain.name} price from CoinGecko for ${selectedToken}: $${data[symbol].usd}`);
           return;
         }
       } catch (coingeckoError) {
-        console.warn('CoinGecko API failed, trying alternative sources:', coingeckoError);
+        console.warn('CoinGecko API failed, trying Chainlink:', coingeckoError);
       }
 
-      // Try 1inch API as backup
-      try {
-        const response = await fetch(`https://api.1inch.dev/price/v1.1/137/${tokenInfo.address}`);
-        const data = await response.json();
-        
-        if (data && data.price) {
-          const livePrice: OraclePrice = {
-            token: selectedToken,
-            price: data.price.toString(),
-            timestamp: Date.now(),
-            decimals: 8
-          };
-          setCurrentPrice(livePrice);
-          console.log(`✅ Live Polygon price from 1inch for ${selectedToken}: $${data.price}`);
-          return;
-        }
-      } catch (oneinchError) {
-        console.warn('1inch API failed:', oneinchError);
-      }
-
-      // Try Chainlink price feeds on Polygon as final backup
-      if (typeof window !== 'undefined' && window.ethereum) {
+      // Try Chainlink price feeds as final backup (only for EVM chains)
+      if (selectedChain !== 'stellar' && typeof window !== 'undefined' && window.ethereum) {
         try {
           const provider = new ethers.BrowserProvider(window.ethereum);
           
-          // Chainlink price feed addresses on Polygon
-          const chainlinkFeeds: Record<string, string> = {
-            '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': '0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7', // USDC/USD
-            '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': '0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D', // DAI/USD
-            '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': '0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6', // WBTC/USD
+          // Chainlink price feed addresses by chain
+          const chainlinkFeeds: Record<string, Record<string, string>> = {
+            ethereum: {
+              '0xA0b86a33E6441b8C4C8C8C8C8C8C8C8C8C8C8C8': '0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6', // USDC/USD
+              '0x6B175474E89094C44Da98b954EedeAC495271d0F': '0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee5', // DAI/USD
+              '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': '0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c', // WBTC/USD
+            },
+            polygon: {
+              '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': '0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7', // USDC/USD
+              '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': '0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D', // DAI/USD
+              '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6': '0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6', // WBTC/USD
+            },
+            arbitrum: {
+              '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8': '0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3', // USDC/USD
+              '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9': '0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE9', // USDT/USD
+            },
+            optimism: {
+              '0x7F5c764cBc14f9669B88837ca1490cCa17c31607': '0x16a9FA2FDaF272466054d8Bf8E4B85d6b5D778ca', // USDC/USD
+              '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58': '0xECef79E109e997bCA29c1c0897ec9d7b03647F5E', // USDT/USD
+            },
           };
 
-          const feedAddress = chainlinkFeeds[tokenInfo.address];
+          const feedAddress = chainlinkFeeds[selectedChain]?.[tokenInfo.address];
           if (feedAddress) {
             const feedABI = [
               'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)'
@@ -226,9 +287,19 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
 
       // If all live sources fail, use fallback
       console.warn('All live price sources failed, using fallback price');
+      const fallbackPrices: Record<string, Record<string, string>> = {
+        ethereum: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", DAI: "1.00", WBTC: "45000.00", USDT: "1.00" },
+        polygon: { MATIC: "0.80", WMATIC: "0.80", USDC: "1.00", DAI: "1.00", WBTC: "45000.00", USDT: "1.00" },
+        bsc: { BNB: "300.00", WBNB: "300.00", USDC: "1.00", BUSD: "1.00", CAKE: "2.50" },
+        arbitrum: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", USDT: "1.00" },
+        optimism: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", USDT: "1.00" },
+        avalanche: { AVAX: "25.00", WAVAX: "25.00", USDC: "1.00", USDT: "1.00" },
+        stellar: { XLM: "0.12", USDC: "1.00", USDT: "1.00" },
+      };
+
       const fallbackPrice: OraclePrice = {
         token: selectedToken,
-        price: selectedToken === "MATIC" ? "0.80" : selectedToken === "WBTC" ? "45000.00" : "1.00",
+        price: fallbackPrices[selectedChain]?.[selectedToken] || "1.00",
         timestamp: Date.now(),
         decimals: 8
       };
@@ -243,9 +314,19 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
     } catch (error) {
       console.error('Price fetch error:', error);
       // Set a fallback price even on error to prevent UI issues
+      const fallbackPrices: Record<string, Record<string, string>> = {
+        ethereum: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", DAI: "1.00", WBTC: "45000.00", USDT: "1.00" },
+        polygon: { MATIC: "0.80", WMATIC: "0.80", USDC: "1.00", DAI: "1.00", WBTC: "45000.00", USDT: "1.00" },
+        bsc: { BNB: "300.00", WBNB: "300.00", USDC: "1.00", BUSD: "1.00", CAKE: "2.50" },
+        arbitrum: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", USDT: "1.00" },
+        optimism: { ETH: "3500.00", WETH: "3500.00", USDC: "1.00", USDT: "1.00" },
+        avalanche: { AVAX: "25.00", WAVAX: "25.00", USDC: "1.00", USDT: "1.00" },
+        stellar: { XLM: "0.12", USDC: "1.00", USDT: "1.00" },
+      };
+
       const fallbackPrice: OraclePrice = {
         token: selectedToken,
-        price: selectedToken === "MATIC" ? "0.80" : selectedToken === "WBTC" ? "45000.00" : "1.00",
+        price: fallbackPrices[selectedChain]?.[selectedToken] || "1.00",
         timestamp: Date.now(),
         decimals: 8
       };
@@ -267,16 +348,53 @@ const SmartContractIntegration = ({ walletAddress, isConnected }: SmartContractI
     try {
       setIsLoading(true);
       
+      const currentChain = chains.find(c => c.id === selectedChain);
+      if (!currentChain) {
+        throw new Error("Chain not found");
+      }
+
       // Get current price for calculation
       const tokenInfo = tokens.find(t => t.symbol === selectedToken);
-      const toToken = selectedToken === "MATIC" ? "USDC" : "MATIC";
+      const toToken = selectedToken === "MATIC" ? "USDC" : 
+                     selectedToken === "ETH" ? "USDC" : 
+                     selectedToken === "BNB" ? "USDC" : 
+                     selectedToken === "AVAX" ? "USDC" : 
+                     selectedToken === "XLM" ? "USDC" : "MATIC";
       const toTokenInfo = tokens.find(t => t.symbol === toToken);
       
       if (!tokenInfo || !toTokenInfo) {
         throw new Error("Token not found");
       }
 
-      // Try to get quote from Executor contract
+      // Try 1inch API for swap quote (network-specific)
+      if (selectedChain !== 'stellar') {
+        try {
+          const response = await fetch(`https://api.1inch.dev/swap/v6.0/${currentChain.chainId}/quote?src=${tokenInfo.address}&dst=${toTokenInfo.address}&amount=${ethers.parseEther(amount).toString()}`);
+          const data = await response.json();
+          
+          if (data && data.toAmount) {
+            const realQuote: SwapQuote = {
+              fromToken: selectedToken,
+              toToken: toToken,
+              fromAmount: amount,
+              toAmount: ethers.formatEther(data.toAmount),
+              fee: data.fee ? ethers.formatEther(data.fee) : (parseFloat(amount) * 0.001).toString(),
+              slippage: 0.5,
+              estimatedGas: data.gas || "180000",
+              route: data.protocols || [],
+              priceImpact: data.priceImpact || 0
+            };
+            
+            setSwapQuote(realQuote);
+            console.log(`✅ 1inch swap quote for ${selectedToken} → ${toToken} on ${currentChain.name}: ${realQuote.toAmount}`);
+            return;
+          }
+        } catch (oneinchError) {
+          console.warn('1inch swap quote failed, trying fallback:', oneinchError);
+        }
+      }
+
+      // Fallback: Try to get quote from Executor contract
       if (typeof window !== 'undefined' && window.ethereum) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const executorABI = [
