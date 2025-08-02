@@ -10,22 +10,16 @@ import {
   ExternalLink,
   Zap,
   Shield,
-  Globe
+  Globe,
+  Loader2
 } from "lucide-react";
-
-interface WalletState {
-  isConnected: boolean;
-  address?: string;
-  chain?: string;
-  balance?: string;
-}
+import { useWallet } from "@/hooks/useWallet";
+import { useToast } from "@/hooks/use-toast";
 
 const WalletConnect = () => {
-  const [walletState, setWalletState] = useState<WalletState>({
-    isConnected: false
-  });
+  const { walletState, connectEthereum, connectStellar, switchEthereumNetwork, disconnect, isConnecting, error } = useWallet();
+  const { toast } = useToast();
   const [showChainSelector, setShowChainSelector] = useState(false);
-  const [selectedChain, setSelectedChain] = useState("ethereum");
 
   const chains = [
     {
@@ -33,42 +27,63 @@ const WalletConnect = () => {
       name: "Ethereum",
       icon: "🔵",
       wallet: "MetaMask",
-      description: "Smart contracts & DeFi"
-    },
-    {
-      id: "stellar",
-      name: "Stellar",
-      icon: "⭐",
-      wallet: "Freighter",
-      description: "Fast & low-cost transfers"
+      description: "Smart contracts & DeFi",
+      chainId: 1
     },
     {
       id: "polygon",
       name: "Polygon",
       icon: "🟣",
       wallet: "MetaMask",
-      description: "Ethereum scaling solution"
+      description: "Ethereum scaling solution",
+      chainId: 137
+    },
+    {
+      id: "stellar",
+      name: "Stellar",
+      icon: "⭐",
+      wallet: "Freighter",
+      description: "Fast & low-cost transfers",
+      chainId: 100
     }
   ];
 
   const handleConnect = async (chainId: string) => {
-    setSelectedChain(chainId);
     setShowChainSelector(false);
     
-    // Simulate wallet connection
-    setWalletState({
-      isConnected: true,
-      address: "0x1234...5678",
-      chain: chainId,
-      balance: chainId === "ethereum" ? "2.5 ETH" : chainId === "stellar" ? "1000 XLM" : "500 MATIC"
-    });
+    try {
+      if (chainId === "stellar") {
+        await connectStellar();
+      } else {
+        await connectEthereum();
+        // If connecting to Polygon, switch to Polygon network
+        if (chainId === "polygon" && walletState.isConnected) {
+          await switchEthereumNetwork(137);
+        }
+      }
+      
+      toast({
+        title: "Wallet Connected",
+        description: `Successfully connected to ${chains.find(c => c.id === chainId)?.name}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Connection Failed",
+        description: err.message || "Failed to connect wallet",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDisconnect = () => {
-    setWalletState({ isConnected: false });
+    disconnect();
+    toast({
+      title: "Wallet Disconnected",
+      description: "Successfully disconnected wallet",
+    });
   };
 
-  const getChainInfo = () => chains.find(chain => chain.id === selectedChain);
+  const getChainInfo = () => chains.find(chain => chain.id === (walletState.network?.toLowerCase().includes('polygon') ? 'polygon' : walletState.network?.toLowerCase().includes('stellar') ? 'stellar' : 'ethereum'));
 
   return (
     <Card className="p-6 h-[600px] flex flex-col bg-gradient-to-br from-space-gray/50 to-deep-space/50 border-neon-cyan/20">
@@ -84,12 +99,33 @@ const WalletConnect = () => {
 
       {!walletState.isConnected ? (
         <div className="flex-1 flex flex-col">
+          {/* Error Display */}
+          {error && (
+            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 mb-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400" />
+                <div>
+                  <h4 className="font-medium text-white">Connection Error</h4>
+                  <p className="text-sm text-muted-foreground">{error.message}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="text-center mb-6">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-neon-cyan/20 to-neon-purple/20 flex items-center justify-center">
-              <Wallet className="w-8 h-8 text-neon-cyan" />
+              {isConnecting ? (
+                <Loader2 className="w-8 h-8 text-neon-cyan animate-spin" />
+              ) : (
+                <Wallet className="w-8 h-8 text-neon-cyan" />
+              )}
             </div>
-            <h4 className="text-lg font-semibold text-white mb-2">Connect Your Wallet</h4>
-            <p className="text-muted-foreground">Choose your preferred blockchain network</p>
+            <h4 className="text-lg font-semibold text-white mb-2">
+              {isConnecting ? "Connecting..." : "Connect Your Wallet"}
+            </h4>
+            <p className="text-muted-foreground">
+              {isConnecting ? "Please approve the connection in your wallet" : "Choose your preferred blockchain network"}
+            </p>
           </div>
 
           {/* Chain Selection */}
@@ -97,8 +133,10 @@ const WalletConnect = () => {
             {chains.map((chain) => (
               <div
                 key={chain.id}
-                onClick={() => handleConnect(chain.id)}
-                className="p-4 rounded-lg border border-border hover:border-neon-cyan/40 cursor-pointer transition-all hover:bg-space-gray/50 group"
+                onClick={() => !isConnecting && handleConnect(chain.id)}
+                className={`p-4 rounded-lg border border-border hover:border-neon-cyan/40 cursor-pointer transition-all hover:bg-space-gray/50 group ${
+                  isConnecting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -159,7 +197,9 @@ const WalletConnect = () => {
               <CheckCircle className="w-5 h-5 text-green-400" />
               <div>
                 <h4 className="font-medium text-white">Wallet Connected</h4>
-                <p className="text-sm text-muted-foreground">{walletState.address}</p>
+                <p className="text-sm text-muted-foreground">
+                  {walletState.address ? `${walletState.address.slice(0, 6)}...${walletState.address.slice(-4)}` : 'Unknown address'}
+                </p>
               </div>
             </div>
           </div>
@@ -169,21 +209,27 @@ const WalletConnect = () => {
             <div className="flex items-center justify-between mb-3">
               <h5 className="font-medium text-white">Current Network</h5>
               <Badge variant="outline" className="text-neon-cyan border-neon-cyan/30">
-                {getChainInfo()?.icon} {getChainInfo()?.name}
+                {getChainInfo()?.icon} {walletState.network || getChainInfo()?.name}
               </Badge>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Balance:</span>
-                <span className="text-white font-medium">{walletState.balance}</span>
+                <span className="text-white font-medium">
+                  {walletState.balance ? `${parseFloat(walletState.balance).toFixed(4)} ${walletState.network?.includes('Stellar') ? 'XLM' : walletState.network?.includes('Polygon') ? 'MATIC' : 'ETH'}` : 'Loading...'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Network:</span>
-                <span className="text-white">{getChainInfo()?.name}</span>
+                <span className="text-white">{walletState.network || getChainInfo()?.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Wallet:</span>
                 <span className="text-white">{getChainInfo()?.wallet}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Chain ID:</span>
+                <span className="text-white">{walletState.chainId || 'Unknown'}</span>
               </div>
             </div>
           </div>
@@ -218,7 +264,9 @@ const WalletConnect = () => {
                     key={chain.id}
                     onClick={() => handleConnect(chain.id)}
                     className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                      selectedChain === chain.id 
+                      (walletState.network?.toLowerCase().includes(chain.id) || 
+                       (chain.id === 'ethereum' && walletState.chainId === 1) ||
+                       (chain.id === 'polygon' && walletState.chainId === 137))
                         ? 'border-neon-cyan/40 bg-neon-cyan/10' 
                         : 'border-border hover:border-neon-cyan/30'
                     }`}
