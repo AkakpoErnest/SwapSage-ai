@@ -49,10 +49,10 @@ const Index = () => {
   const tabs = [
     { id: "swap", label: "Swap", icon: Coins },
     { id: "bridge", label: "Bridge", icon: Network },
+    { id: "ai", label: "AI Assistant", icon: Bot },
     { id: "history", label: "History", icon: Activity },
     { id: "contracts", label: "Smart Contracts", icon: Settings },
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "ai", label: "AI Assistant", icon: Bot },
   ];
 
   const renderContent = () => {
@@ -85,6 +85,17 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-space">
       <Header />
+      
+      {/* Floating AI Chat Button */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Button
+          onClick={() => setActiveTab("ai")}
+          className="bg-gradient-primary hover:bg-gradient-primary/80 rounded-full w-14 h-14 shadow-lg"
+          size="icon"
+        >
+          <Bot className="w-6 h-6" />
+        </Button>
+      </div>
       
       {/* Hero Section */}
       <section className="relative py-20 px-4">

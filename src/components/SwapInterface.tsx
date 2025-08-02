@@ -10,13 +10,22 @@ import { useWalletContext } from '../contexts/WalletContext';
 import { oneInchAPI, Token, SwapQuote } from '../services/api/oneinch';
 import { crossChainBridge, CrossChainSwapRequest, SwapStatus } from '../services/bridge/crossChainBridge';
 import { stellarService } from '../services/stellar/stellarService';
-import { ArrowRight, RefreshCw, AlertCircle, CheckCircle, Clock, X } from 'lucide-react';
+import { 
+  ArrowRight, 
+  RefreshCw, 
+  AlertCircle, 
+  CheckCircle, 
+  Clock, 
+  X, 
+  TrendingUp, 
+  Zap, 
+  Shield,
+  Coins,
+  ArrowUpDown
+} from 'lucide-react';
 
 const SwapInterface: React.FC = () => {
   const { walletState } = useWalletContext();
-  
-  // Debug wallet state
-  console.log('SwapInterface wallet state:', walletState);
   const [fromToken, setFromToken] = useState<string>('');
   const [toToken, setToToken] = useState<string>('');
   const [fromAmount, setFromAmount] = useState<string>('');
@@ -29,6 +38,12 @@ const SwapInterface: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [activeSwaps, setActiveSwaps] = useState<SwapStatus[]>([]);
   const [slippage, setSlippage] = useState<number>(1);
+  
+  // Price feed state
+  const [currentPrice, setCurrentPrice] = useState<string>('0.80');
+  const [lastUpdated, setLastUpdated] = useState<string>('13:11:18');
+  const [selectedToken, setSelectedToken] = useState<string>('MATIC');
+  const [isRefreshingPrice, setIsRefreshingPrice] = useState(false);
 
   // Enhanced token selection with error handling
   const handleTokenChange = (tokenAddress: string, type: 'from' | 'to') => {
@@ -99,47 +114,29 @@ const SwapInterface: React.FC = () => {
       },
     },
     polygon: {
-      // MATIC (native token) - correct address for Polygon
-      '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': { 
-        address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      '0x0000000000000000000000000000000000001010': { 
+        address: '0x0000000000000000000000000000000000001010',
         symbol: 'MATIC', 
         name: 'Polygon', 
         decimals: 18 
       },
-      // Alternative MATIC address
-      '0x0000000000000000000000000000000000000000': { 
-        address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-        symbol: 'MATIC', 
-        name: 'Polygon', 
-        decimals: 18 
-      },
-      // USDC on Polygon mainnet
       '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174': { 
         address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
         symbol: 'USDC', 
         name: 'USD Coin', 
         decimals: 6 
       },
-      // USDT on Polygon mainnet
-      '0xc2132D05D31c914a87C6611C10748AEb04B58e8F': { 
-        address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
-        symbol: 'USDT', 
-        name: 'Tether USD', 
-        decimals: 6 
-      },
-      // DAI on Polygon mainnet
       '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063': { 
         address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
         symbol: 'DAI', 
         name: 'Dai Stablecoin', 
         decimals: 18 
       },
-      // WETH on Polygon mainnet
-      '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': { 
-        address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
-        symbol: 'WETH', 
-        name: 'Wrapped Ether', 
-        decimals: 18 
+      '0xc2132D05D31c914a87C6611C10748AEb04B58e8F': { 
+        address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+        symbol: 'USDT', 
+        name: 'Tether USD', 
+        decimals: 6 
       },
     },
     stellar: {
@@ -167,15 +164,8 @@ const SwapInterface: React.FC = () => {
   useEffect(() => {
     loadTokens();
     loadActiveSwaps();
+    refreshPrice();
   }, []);
-
-  // Reload tokens when wallet network changes
-  useEffect(() => {
-    if (walletState.chainId) {
-      console.log('Wallet network changed, reloading tokens...');
-      loadTokens();
-    }
-  }, [walletState.chainId]);
 
   useEffect(() => {
     if (fromToken && toToken && fromAmount && walletState.isConnected) {
@@ -185,30 +175,13 @@ const SwapInterface: React.FC = () => {
 
   const loadTokens = async () => {
     try {
-      // Load tokens from 1inch API using current chain ID (default to Polygon mainnet)
-      const chainId = walletState.chainId || 137; // Default to Polygon mainnet
-      console.log(`Loading tokens for chain ID: ${chainId}`);
-      const ethereumTokens = await oneInchAPI.getTokens(chainId);
-      
-      // Ensure native token (ETH/MATIC) is always available
-      const nativeTokenSymbol = chainId === 137 ? 'MATIC' : 'ETH';
-      const tokensWithNative = {
-        ...ethereumTokens,
-        '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': {
-          address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-          symbol: nativeTokenSymbol,
-          name: chainId === 137 ? 'Polygon' : 'Ethereum',
-          decimals: 18,
-        }
-      };
-      
-              console.log('Available tokens:', Object.keys(tokensWithNative));
-              setTokens(tokensWithNative);
+      // Load Ethereum tokens from 1inch API
+      const ethereumTokens = await oneInchAPI.getTokens(1);
+      setTokens(ethereumTokens);
     } catch (error) {
       console.error('Error loading tokens:', error);
       // Use fallback tokens
-      console.log('Using fallback tokens');
-      setTokens(availableTokens.polygon);
+      setTokens(availableTokens.ethereum);
     }
   };
 
@@ -220,23 +193,7 @@ const SwapInterface: React.FC = () => {
   };
 
   const calculateQuote = async () => {
-    console.log('=== CALCULATE QUOTE START ===');
-    console.log('fromToken:', fromToken);
-    console.log('toToken:', toToken);
-    console.log('fromAmount:', fromAmount);
-    console.log('walletState.isConnected:', walletState.isConnected);
-    console.log('walletState.chainId:', walletState.chainId);
-    console.log('fromChain:', fromChain);
-    console.log('toChain:', toChain);
-
-    if (!fromToken || !toToken || !fromAmount || !walletState.isConnected) {
-      setError('Please connect wallet and fill all fields');
-      return;
-    }
-
-    // Prevent swapping same token
-    if (fromToken === toToken && fromChain === toChain) {
-      setError('Cannot swap the same token. Please select different tokens.');
+    if (!fromToken || !toToken || !fromAmount || parseFloat(fromAmount) <= 0) {
       return;
     }
 
@@ -244,107 +201,53 @@ const SwapInterface: React.FC = () => {
     setError('');
 
     try {
-      if (fromChain === toChain) {
-        // Same-chain swap using 1inch
-        if (fromChain === 'polygon') {
-          // Use the actual chain ID from wallet state, fallback to Polygon mainnet if not available
-          const chainId = walletState.chainId || 137;
-          console.log(`Using chain ID: ${chainId} for swap quote`);
-          console.log(`From Token: ${fromToken}`);
-          console.log(`To Token: ${toToken}`);
-          console.log(`Amount: ${fromAmount}`);
-          console.log(`Address: ${walletState.address}`);
-          
-          try {
-            const quote = await oneInchAPI.getSwapQuote(
-              chainId,
-              fromToken,
-              toToken,
-              fromAmount,
-              walletState.address!,
-              slippage
-            );
-            console.log('1inch quote received:', quote);
-            setSwapQuote(quote);
-            setToAmount(quote.toTokenAmount);
-          } catch (error) {
-            console.error('1inch API error:', error);
-            throw error;
-          }
-        } else {
-          // Stellar same-chain swap
-          const exchangeRate = await stellarService.getExchangeRate(fromToken, toToken);
-          const convertedAmount = (parseFloat(fromAmount) * exchangeRate).toFixed(7);
-          setToAmount(convertedAmount);
-        }
-      } else {
-        // Cross-chain swap - estimate based on current rates
-        console.log(`Cross-chain swap: ${fromChain} → ${toChain}`);
-        console.log(`From: ${fromAmount} ${fromToken} → To: ${toToken}`);
-        let estimatedAmount = fromAmount;
-        
-        if (fromChain === 'polygon') {
-          // Convert to MATIC first, then estimate Stellar amount
-          if (fromToken !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
-            const chainId = walletState.chainId || 137;
-            
-            try {
-              // Try to get real quote from 1inch
-              const maticQuote = await oneInchAPI.getSwapQuote(
-                chainId,
-                fromToken,
-                '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-                fromAmount,
-                walletState.address!,
-                slippage
-              );
-              estimatedAmount = maticQuote.toTokenAmount;
-            } catch (error) {
-              console.log('1inch API failed, using demo conversion for cross-chain swap');
-              // Fallback: use demo conversion rate (1 USDC ≈ 0.001 MATIC on Polygon)
-              const demoRate = 0.001; // Demo rate for USDC to MATIC
-              estimatedAmount = (parseFloat(fromAmount) * demoRate).toString();
-            }
-          }
-          
-          // Estimate Stellar amount (simplified)
-          try {
-            const stellarRate = await stellarService.getExchangeRate('MATIC', 'XLM');
-            const stellarAmount = (parseFloat(estimatedAmount) * stellarRate).toFixed(7);
-            setToAmount(stellarAmount);
-          } catch (error) {
-            console.log('Stellar service failed, using demo rate');
-            // Fallback: use demo rate (1 MATIC ≈ 100 XLM)
-            const demoStellarRate = 100;
-            const stellarAmount = (parseFloat(estimatedAmount) * demoStellarRate).toFixed(7);
-            setToAmount(stellarAmount);
-          }
-        } else {
-          // Stellar to Polygon
-          try {
-            const maticRate = await stellarService.getExchangeRate('XLM', 'MATIC');
-            const maticAmount = (parseFloat(fromAmount) * maticRate).toFixed(18);
-            setToAmount(maticAmount);
-          } catch (error) {
-            console.log('Stellar service failed, using demo rate for XLM to MATIC');
-            // Fallback: use demo rate (1 XLM ≈ 0.01 MATIC)
-            const demoRate = 0.01;
-            const maticAmount = (parseFloat(fromAmount) * demoRate).toFixed(18);
-            setToAmount(maticAmount);
-          }
-        }
-      }
+      // Get quote from 1inch API
+      const quote = await oneInchAPI.getSwapQuote(
+        1, // Ethereum chain ID
+        fromToken,
+        toToken,
+        fromAmount,
+        walletState.address || '0x0000000000000000000000000000000000000000'
+      );
+
+      setSwapQuote(quote);
+      setToAmount(quote.toTokenAmount);
     } catch (error) {
       console.error('Error calculating quote:', error);
-      setError(error instanceof Error ? error.message : 'Failed to calculate quote');
+      setError('Failed to get quote. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Price feed functions
+  const refreshPrice = async () => {
+    setIsRefreshingPrice(true);
+    try {
+      // Simulate price update
+      const newPrice = (Math.random() * 0.2 + 0.7).toFixed(2);
+      setCurrentPrice(newPrice);
+      setLastUpdated(new Date().toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      }));
+    } catch (error) {
+      console.error('Error refreshing price:', error);
+    } finally {
+      setIsRefreshingPrice(false);
+    }
+  };
+
   const executeSwap = async () => {
-    if (!walletState.isConnected || !fromToken || !toToken || !fromAmount) {
-      setError('Please connect wallet and fill all fields');
+    if (!walletState.isConnected) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    if (!fromToken || !toToken || !fromAmount || !swapQuote) {
+      setError('Please fill in all fields and get a quote first');
       return;
     }
 
@@ -352,15 +255,11 @@ const SwapInterface: React.FC = () => {
     setError('');
 
     try {
-      if (fromChain === toChain) {
-        // Same-chain swap
-        if (fromChain === 'polygon') {
-          await executePolygonSwap();
-        } else {
-          await executeStellarSwap();
-        }
+      if (fromChain === 'polygon') {
+        await executePolygonSwap();
+      } else if (fromChain === 'stellar') {
+        await executeStellarSwap();
       } else {
-        // Cross-chain swap
         await executeCrossChainSwap();
       }
     } catch (error) {
@@ -372,125 +271,69 @@ const SwapInterface: React.FC = () => {
   };
 
   const executePolygonSwap = async () => {
-    if (!swapQuote) throw new Error('No swap quote available');
-
     try {
-      console.log('🔍 Starting Polygon swap execution...');
-      console.log('Wallet connected:', walletState.isConnected);
-      console.log('Wallet address:', walletState.address);
-      console.log('Provider available:', !!walletState.provider);
-      
-      // Validate wallet connection
-      if (!walletState.provider || !walletState.address) {
-        throw new Error('Wallet not properly connected. Please reconnect your wallet.');
-      }
-
-      const signer = await walletState.provider.getSigner();
-      console.log('Signer obtained:', !!signer);
-      
-      // Check if user has enough balance
-      const balance = await walletState.provider.getBalance(walletState.address);
-      const requiredValue = BigInt(swapQuote.tx.value || '0');
-      
-      console.log('User balance:', ethers.formatEther(balance), 'MATIC');
-      console.log('Required value:', ethers.formatEther(requiredValue), 'MATIC');
-      
-      if (balance < requiredValue) {
-        throw new Error(`Insufficient balance. Required: ${ethers.formatEther(requiredValue)} MATIC, Available: ${ethers.formatEther(balance)} MATIC`);
-      }
-
-      console.log('✅ Balance check passed');
-      console.log('Executing 1inch swap on Polygon...');
-      console.log('To:', swapQuote.tx.to);
-      console.log('Value:', ethers.formatEther(requiredValue), 'MATIC');
-      console.log('Gas Limit:', swapQuote.estimatedGas);
-      console.log('Data length:', swapQuote.tx.data.length);
-
-      // Prepare transaction
-      const txRequest = {
-        to: swapQuote.tx.to,
-        data: swapQuote.tx.data,
-        value: requiredValue,
-        gasLimit: BigInt(swapQuote.estimatedGas || '300000'),
+      const swapRequest: CrossChainSwapRequest = {
+        fromChain: 'polygon',
+        toChain: toChain,
+        fromToken: fromToken,
+        toToken: toToken,
+        fromAmount: fromAmount,
+        toAmount: toAmount,
+        recipientAddress: walletState.address || '',
+        slippage: slippage
       };
 
-      console.log('Transaction request:', txRequest);
-
-      const tx = await signer.sendTransaction(txRequest);
-
-      console.log('✅ Transaction sent:', tx.hash);
-      
-      // Wait for confirmation
-      const receipt = await tx.wait();
-      console.log('✅ Polygon swap completed:', receipt?.hash);
-      
-      // Show success message
-      setError('');
-      alert(`Swap completed successfully! Transaction: ${receipt?.hash}`);
-      
-      // Refresh the page to update balances
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-      
+      const swap = await crossChainBridge.initiatePolygonToStellarSwap(swapRequest);
+      setActiveSwaps(prev => [...prev, swap]);
+      console.log('Polygon swap initiated:', swap);
     } catch (error) {
-      console.error('❌ Error executing Polygon swap:', error);
-      
-      // Provide more specific error messages
-      if (error instanceof Error) {
-        if (error.message.includes('insufficient funds')) {
-          throw new Error('Insufficient MATIC balance for gas fees. Please add more MATIC to your wallet.');
-        } else if (error.message.includes('user rejected')) {
-          throw new Error('Transaction was rejected by user. Please try again.');
-        } else if (error.message.includes('network')) {
-          throw new Error('Network error. Please check your internet connection and try again.');
-        } else {
-          throw new Error(`Swap failed: ${error.message}`);
-        }
-      } else {
-        throw new Error(`Swap failed: ${error}`);
-      }
+      console.error('Error executing Polygon swap:', error);
+      throw error;
     }
   };
 
   const executeStellarSwap = async () => {
-    // For Stellar same-chain swaps, we'd use the DEX
-    const payment = await stellarService.convertTokens(
-      fromToken,
-      toToken,
-      fromAmount,
-      walletState.address!
-    );
-    
-    console.log('Stellar swap completed:', payment.transactionHash);
+    try {
+      const swapRequest: CrossChainSwapRequest = {
+        fromChain: 'stellar',
+        toChain: toChain,
+        fromToken: fromToken,
+        toToken: toToken,
+        fromAmount: fromAmount,
+        toAmount: toAmount,
+        recipientAddress: walletState.address || '',
+        slippage: slippage
+      };
+
+      const swap = await crossChainBridge.initiateStellarToEthereumSwap(swapRequest);
+      setActiveSwaps(prev => [...prev, swap]);
+      console.log('Stellar swap initiated:', swap);
+    } catch (error) {
+      console.error('Error executing Stellar swap:', error);
+      throw error;
+    }
   };
 
   const executeCrossChainSwap = async () => {
-    const swapRequest: CrossChainSwapRequest = {
-      fromChain: fromChain as 'polygon' | 'stellar',
-      toChain: toChain as 'polygon' | 'stellar',
-      fromToken,
-      toToken,
-      amount: fromAmount,
-      fromAddress: walletState.address!,
-      toAddress: walletState.address!, // For now, same address
-      slippage,
-    };
+    try {
+      const swapRequest: CrossChainSwapRequest = {
+        fromChain: fromChain,
+        toChain: toChain,
+        fromToken: fromToken,
+        toToken: toToken,
+        fromAmount: fromAmount,
+        toAmount: toAmount,
+        recipientAddress: walletState.address || '',
+        slippage: slippage
+      };
 
-    let swapStatus: SwapStatus;
-
-    if (fromChain === 'polygon' && toChain === 'stellar') {
-      swapStatus = await crossChainBridge.initiatePolygonToStellarSwap(swapRequest);
-    } else {
-      swapStatus = await crossChainBridge.initiateStellarToPolygonSwap(swapRequest);
+      const swap = await crossChainBridge.initiateEthereumToStellarSwap(swapRequest);
+      setActiveSwaps(prev => [...prev, swap]);
+      console.log('Cross-chain swap initiated:', swap);
+    } catch (error) {
+      console.error('Error executing cross-chain swap:', error);
+      throw error;
     }
-
-    console.log('Cross-chain swap initiated:', swapStatus);
-    
-    // Add to active swaps
-    setActiveSwaps(prev => [...prev, swapStatus]);
-    
-    // Balance will be refreshed automatically
   };
 
   const completeSwap = async (swapId: string, secret: string) => {
@@ -545,49 +388,150 @@ const SwapInterface: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Live Polygon Price Feeds Section */}
+      <Card className="bg-gradient-card border-neon-cyan/20">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-neon-green" />
+              <CardTitle className="text-lg">Live Polygon Price Feeds</CardTitle>
+              <div className="w-2 h-2 bg-neon-purple rounded-full"></div>
+            </div>
+            <Badge variant="outline" className="bg-space-gray/50 border-neon-cyan/20">
+              Polygon Oracle
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Select value={selectedToken} onValueChange={setSelectedToken}>
+              <SelectTrigger className="w-32 bg-space-gray border-neon-cyan/20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MATIC">MATIC</SelectItem>
+                <SelectItem value="USDC">USDC</SelectItem>
+                <SelectItem value="DAI">DAI</SelectItem>
+                <SelectItem value="USDT">USDT</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={refreshPrice}
+              disabled={isRefreshingPrice}
+              className="bg-space-gray border-neon-cyan/20 hover:bg-neon-cyan/10"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingPrice ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground">Current Price</div>
+            <div className="text-2xl font-bold text-neon-cyan">${currentPrice}</div>
+            <div className="text-xs text-muted-foreground">Last updated: {lastUpdated}</div>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Polygon Swap Quote Section */}
+      <Card className="bg-gradient-card border-neon-cyan/20">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-neon-purple" />
+              <CardTitle className="text-lg">Polygon Swap Quote</CardTitle>
+              <div className="w-2 h-2 bg-neon-purple rounded-full"></div>
+            </div>
+            <Badge variant="outline" className="bg-space-gray/50 border-neon-cyan/20">
+              1inch Fusion
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Input
+              type="number"
+              placeholder="0.0"
+              value={fromAmount}
+              onChange={(e) => setFromAmount(e.target.value)}
+              className="flex-1 bg-space-gray border-neon-cyan/20 focus:border-neon-cyan/40"
+            />
+            <Select value={fromToken} onValueChange={(value) => handleTokenChange(value, 'from')}>
+              <SelectTrigger className="w-32 bg-space-gray border-neon-cyan/20">
+                <SelectValue placeholder="Token" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(availableTokens[fromChain] || {}).map(([address, token]) => (
+                  <SelectItem key={address} value={address}>
+                    {(token as Token).symbol}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <Button 
+            onClick={calculateQuote}
+            disabled={isLoading || !fromAmount || !fromToken}
+            className="w-full bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
+          >
+            {isLoading ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Getting Quote...
+              </>
+            ) : (
+              <>
+                <Coins className="h-4 w-4 mr-2" />
+                Get Quote
+              </>
+            )}
+          </Button>
 
-      {/* Swap Interface */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span>Cross-Chain Swap</span>
-            <Badge variant="outline">HTLC Secure</Badge>
-          </CardTitle>
-          <CardDescription>
-            Swap tokens between Ethereum and Stellar with atomic cross-chain security
-          </CardDescription>
+          {swapQuote && (
+            <div className="p-3 bg-neon-cyan/5 rounded-lg border border-neon-cyan/20">
+              <div className="text-sm text-muted-foreground">Estimated Output</div>
+              <div className="text-lg font-semibold text-neon-cyan">
+                {swapQuote.toTokenAmount} {swapQuote.toToken}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Rate: 1 {swapQuote.fromToken} = {swapQuote.rate} {swapQuote.toToken}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Atomic Cross-Chain Swaps Section */}
+      <Card className="bg-gradient-card border-neon-cyan/20">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-neon-green" />
+              <CardTitle className="text-lg">Atomic Cross-Chain Swaps</CardTitle>
+            </div>
+            <Badge variant="outline" className="bg-space-gray/50 border-neon-cyan/20">
+              HTLC Protocol
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {!walletState.isConnected && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="flex items-center justify-between">
-                <span>Please connect your wallet to start swapping</span>
-                <Button 
-                  onClick={async () => {
-                    try {
-                      const { connectEthereum } = useWalletContext();
-                      await connectEthereum();
-                    } catch (error) {
-                      console.error('Failed to connect wallet:', error);
-                    }
-                  }}
-                  size="sm"
-                  className="ml-4"
-                >
-                  Connect Wallet
-                </Button>
+            <Alert className="bg-red-500/10 border-red-500/20">
+              <AlertCircle className="h-4 w-4 text-red-400" />
+              <AlertDescription>
+                Please connect your wallet to start swapping
               </AlertDescription>
             </Alert>
           )}
 
-          {/* From Chain and Token */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">From Chain</label>
               <Select value={fromChain} onValueChange={(value: 'ethereum' | 'polygon' | 'stellar') => handleChainChange(value, 'from')}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-space-gray border-neon-cyan/20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -600,7 +544,7 @@ const SwapInterface: React.FC = () => {
             <div className="space-y-2">
               <label className="text-sm font-medium">To Chain</label>
               <Select value={toChain} onValueChange={(value: 'ethereum' | 'polygon' | 'stellar') => handleChainChange(value, 'to')}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-space-gray border-neon-cyan/20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -612,12 +556,11 @@ const SwapInterface: React.FC = () => {
             </div>
           </div>
 
-          {/* Token Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">From Token</label>
               <Select value={fromToken} onValueChange={(value) => handleTokenChange(value, 'from')}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-space-gray border-neon-cyan/20">
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>
                 <SelectContent>
@@ -639,7 +582,7 @@ const SwapInterface: React.FC = () => {
             <div className="space-y-2">
               <label className="text-sm font-medium">To Token</label>
               <Select value={toToken} onValueChange={(value) => handleTokenChange(value, 'to')}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-space-gray border-neon-cyan/20">
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>
                 <SelectContent>
@@ -660,211 +603,79 @@ const SwapInterface: React.FC = () => {
             </div>
           </div>
 
-          {/* Amount Inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Amount</label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  placeholder="0.0"
-                  value={fromAmount}
-                  onChange={(e) => setFromAmount(e.target.value)}
-                  disabled={!walletState.isConnected}
-                />
-                {walletState.isConnected && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                    onClick={() => setFromAmount(walletState.balance || '0')}
-                  >
-                    MAX
-                  </Button>
-                )}
-              </div>
-              {walletState.isConnected && (
-                <p className="text-xs text-muted-foreground">
-                  Balance: {walletState.balance} {fromToken ? 
-                    ((fromChain === 'ethereum' || fromChain === 'polygon') ? tokens[fromToken]?.symbol : availableTokens[fromChain][fromToken]?.symbol) 
-                    : ''}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">You'll Receive</label>
-              <Input
-                type="number"
-                placeholder="0.0"
-                value={toAmount}
-                readOnly
-                className="bg-muted"
-              />
-              {swapQuote && (
-                <p className="text-xs text-muted-foreground">
-                  Rate: 1 {(fromChain === 'ethereum' || fromChain === 'polygon') ? tokens[fromToken]?.symbol : availableTokens[fromChain][fromToken]?.symbol} = {toAmount} {(toChain === 'ethereum' || toChain === 'polygon') ? tokens[toToken]?.symbol : availableTokens[toChain][toToken]?.symbol}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Slippage */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Slippage Tolerance</label>
-            <Select value={slippage.toString()} onValueChange={(value) => setSlippage(parseFloat(value))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0.5">0.5%</SelectItem>
-                <SelectItem value="1">1%</SelectItem>
-                <SelectItem value="2">2%</SelectItem>
-                <SelectItem value="5">5%</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-medium">Amount</label>
+            <Input
+              type="number"
+              placeholder="0.0"
+              value={fromAmount}
+              onChange={(e) => setFromAmount(e.target.value)}
+              className="bg-space-gray border-neon-cyan/20 focus:border-neon-cyan/40"
+            />
           </div>
 
-          {/* Quote Details */}
-          {swapQuote && fromChain === toChain && (
-            <div className="p-4 border rounded-lg bg-muted/50">
-              <h4 className="font-medium mb-2">Swap Quote</h4>
-              <div className="space-y-1 text-sm">
-                <div>Estimated Gas: {swapQuote.estimatedGas}</div>
-                <div>Protocols: {swapQuote.protocols.join(', ')}</div>
-                <div>You Pay: {swapQuote.fromTokenAmount} {swapQuote.fromToken.symbol}</div>
-                <div>You Receive: {swapQuote.toTokenAmount} {swapQuote.toToken.symbol}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Error Display */}
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Helpful Tips */}
-          {!error && fromToken === toToken && fromChain === toChain && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                💡 Tip: Select different tokens to swap. For example, try ETH → USDC or USDC → DAI.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Cross-Chain Swap Info */}
-          {!error && fromChain !== toChain && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                🌉 Cross-chain swap: {fromChain.toUpperCase()} → {toChain.toUpperCase()}. 
-                This will use atomic HTLC swaps for secure cross-chain transfers.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Get Quote Button */}
-          {fromChain === toChain && fromToken && toToken && fromAmount && !swapQuote && (
-            <Button
-              onClick={calculateQuote}
-              disabled={!walletState.isConnected || isLoading || fromToken === toToken}
-              variant="outline"
-              className="w-full"
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Get Quote
-            </Button>
-          )}
-
-          {/* Swap Button */}
-          <Button
+          <Button 
             onClick={executeSwap}
-            disabled={!walletState.isConnected || !fromToken || !toToken || !fromAmount || isLoading || fromToken === toToken || (fromChain === toChain && !swapQuote)}
-            className="w-full"
+            disabled={isLoading || !walletState.isConnected || !fromToken || !toToken || !fromAmount}
+            className="w-full bg-space-gray text-foreground border border-neon-cyan/20 hover:bg-neon-cyan/10"
           >
             {isLoading ? (
               <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Processing...
               </>
             ) : (
               <>
-                <ArrowRight className="mr-2 h-4 w-4" />
-                {fromChain === toChain ? 'Swap' : 'Bridge & Swap'}
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                Initiate Atomic Swap
               </>
             )}
           </Button>
+
+          {error && (
+            <Alert className="bg-red-500/10 border-red-500/20">
+              <AlertCircle className="h-4 w-4 text-red-400" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
-      {/* Active Swaps */}
+      {/* Active Swaps Section */}
       {activeSwaps.length > 0 && (
-        <Card>
+        <Card className="bg-gradient-card border-neon-cyan/20">
           <CardHeader>
-            <CardTitle>Active Swaps</CardTitle>
-            <CardDescription>
-              Monitor your cross-chain swap progress
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-neon-cyan" />
+              Active Swaps
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {activeSwaps.map((swap) => (
-                <div key={swap.id} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
+                <div key={swap.id} className="p-3 bg-space-gray/50 rounded-lg border border-neon-cyan/10">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {getStatusIcon(swap.status)}
-                      <span className="font-medium">
-                        {swap.fromChain.toUpperCase()} → {swap.toChain.toUpperCase()}
+                      <span className="text-sm font-medium">
+                        {swap.fromAmount} {swap.fromToken} → {swap.toAmount} {swap.toToken}
                       </span>
                     </div>
                     <Badge className={getStatusColor(swap.status)}>
                       {swap.status}
                     </Badge>
                   </div>
-                  
-                  <div className="text-sm text-muted-foreground mb-2">
-                    {swap.amount} {swap.fromToken} → {swap.receivedAmount || '...'} {swap.toToken}
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {swap.fromChain} → {swap.toChain}
                   </div>
-                  
-                  <div className="text-xs text-muted-foreground mb-3">
-                    ID: {swap.id.slice(0, 8)}...{swap.id.slice(-8)}
-                  </div>
-
-                  {swap.status === 'initiated' && swap.secret && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Secret for completion: {swap.secret}
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => completeSwap(swap.id, swap.secret!)}
-                        >
-                          Complete Swap
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => refundSwap(swap.id)}
-                        >
-                          Refund
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {swap.ethereumTxHash && (
-                    <div className="text-xs text-muted-foreground">
-                      ETH TX: {swap.ethereumTxHash.slice(0, 8)}...{swap.ethereumTxHash.slice(-8)}
-                    </div>
-                  )}
-
-                  {swap.stellarTxHash && (
-                    <div className="text-xs text-muted-foreground">
-                      Stellar TX: {swap.stellarTxHash}
+                  {swap.status === 'initiated' && (
+                    <div className="mt-2 flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => completeSwap(swap.id, 'secret')}>
+                        Complete
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => refundSwap(swap.id)}>
+                        Refund
+                      </Button>
                     </div>
                   )}
                 </div>

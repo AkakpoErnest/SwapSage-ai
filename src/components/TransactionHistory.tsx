@@ -51,7 +51,7 @@ const TransactionHistory = () => {
     totalVolume: "0",
   });
 
-  const { walletState, connectEthereum } = useWallet();
+  const { walletState, connectEthereum, connectStellar, disconnect } = useWallet();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -287,7 +287,20 @@ const TransactionHistory = () => {
   };
 
   const openTransactionExplorer = (txHash: string) => {
-    window.open(`https://etherscan.io/tx/${txHash}`, '_blank');
+    // Use Polygon explorer for Polygon transactions, Stellar for Stellar transactions
+    const isPolygon = walletState.network?.toLowerCase().includes('polygon') || 
+                     walletState.chainId === 137;
+    const isStellar = walletState.network?.toLowerCase().includes('stellar') || 
+                     walletState.chainId === 100;
+    
+    if (isPolygon) {
+      window.open(`https://polygonscan.com/tx/${txHash}`, '_blank');
+    } else if (isStellar) {
+      window.open(`https://stellar.expert/explorer/testnet/tx/${txHash}`, '_blank');
+    } else {
+      // Default to Polygon explorer for now
+      window.open(`https://polygonscan.com/tx/${txHash}`, '_blank');
+    }
   };
 
   const exportHistory = async (format: 'json' | 'csv' = 'json') => {
@@ -330,28 +343,49 @@ const TransactionHistory = () => {
             <Activity className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h3 className="text-xl font-semibold text-white mb-2">Connect Your Wallet</h3>
+            <h3 className="text-xl font-semibold text-white mb-2">🟣⭐ Polygon-Stellar Transaction History</h3>
             <p className="text-muted-foreground mb-4">
-              Connect your wallet to view your on-chain transaction history
+              Connect your wallet to view your cross-chain transaction history
             </p>
-            <Button 
-              onClick={async () => {
-                try {
-                  await connectEthereum();
-                } catch (error) {
-                  console.error('Failed to connect wallet:', error);
-                  toast({
-                    title: "Connection Failed",
-                    description: "Failed to connect wallet. Please try again.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-              className="bg-gradient-primary hover:bg-gradient-primary/80"
-            >
-              <WalletIcon className="w-4 h-4 mr-2" />
-              Connect Wallet
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button 
+                onClick={async () => {
+                  try {
+                    await connectEthereum();
+                  } catch (error) {
+                    console.error('Failed to connect wallet:', error);
+                    toast({
+                      title: "Connection Failed",
+                      description: "Failed to connect wallet. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                className="bg-gradient-primary hover:bg-gradient-primary/80"
+              >
+                <WalletIcon className="w-4 h-4 mr-2" />
+                Connect MetaMask
+              </Button>
+              <Button 
+                onClick={async () => {
+                  try {
+                    await connectStellar();
+                  } catch (error) {
+                    console.error('Failed to connect Stellar wallet:', error);
+                    toast({
+                      title: "Connection Failed",
+                      description: "Failed to connect Stellar wallet. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                variant="outline"
+                className="border-neon-purple/40 text-neon-purple hover:bg-neon-purple/10"
+              >
+                <WalletIcon className="w-4 h-4 mr-2" />
+                Connect Freighter
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
@@ -513,6 +547,87 @@ const TransactionHistory = () => {
             </TableBody>
           </Table>
         )}
+      </Card>
+
+      {/* Persistent Connection Status */}
+      <Card className="bg-gradient-card border-neon-green/20">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-neon-green rounded-full animate-pulse"></div>
+              <div>
+                <h4 className="font-medium text-white">Wallet Connected</h4>
+                <p className="text-sm text-muted-foreground">
+                  {walletState.address ? `${walletState.address.slice(0, 6)}...${walletState.address.slice(-4)}` : 'Unknown address'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-neon-green border-neon-green/30">
+                {walletState.network || 'Connected'}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  disconnect();
+                  toast({
+                    title: "Wallet Disconnected",
+                    description: "Successfully disconnected wallet",
+                  });
+                }}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                Disconnect
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Quick Access Section */}
+      <Card className="bg-gradient-card border-neon-cyan/20">
+        <div className="p-4">
+          <h4 className="font-medium text-white mb-3">Quick Access</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setFilteredTransactions(transactions.filter(tx => tx.status === 'completed'));
+              }}
+              className="border-neon-green/30 text-neon-green hover:bg-neon-green/10"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Show Completed
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setFilteredTransactions(transactions.filter(tx => tx.type === 'bridge'));
+              }}
+              className="border-neon-purple/30 text-neon-purple hover:bg-neon-purple/10"
+            >
+              <Network className="w-4 h-4 mr-2" />
+              Show Bridges
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setFilteredTransactions(transactions);
+              }}
+              className="border-neon-cyan/30 text-neon-cyan hover:bg-neon-cyan/10"
+            >
+              <Activity className="w-4 h-4 mr-2" />
+              Show All
+            </Button>
+          </div>
+        </div>
       </Card>
     </div>
   );
