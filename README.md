@@ -468,7 +468,7 @@ npx hardhat run scripts/deploy-testnet.js --network sepolia
 - **Security**: HTLC atomic swap mechanics
 
 ### **🔄 Next Steps:**
-1. **Complete Polygon Deployment**: Deploy remaining contracts (SwapSageExecutor, SimpleHTLC, MockERC20)
+1. **Complete Polygon Deployment**
 2. **Contract Verification**: Verify all contracts on Polygonscan
 3. **Testing**: Test full Polygon ↔ Stellar swap flow with real 1inch quotes
 4. **Production**: Deploy frontend to production with mainnet integration
