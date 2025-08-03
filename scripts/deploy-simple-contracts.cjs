@@ -6,7 +6,7 @@ const path = require("path");
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 
 async function main() {
-  console.log("🚀 Deploying remaining contracts to Polygon mainnet...\n");
+  console.log("🚀 Deploying SimpleHTLC and MockERC20 to Polygon mainnet...\n");
 
   // Check environment variables
   const requiredEnvVars = ['PRIVATE_KEY'];
@@ -61,7 +61,6 @@ async function main() {
 
     if (!existingOracle || !existingHtlc) {
       console.error("❌ Existing Oracle and HTLC contracts not found in deployment-info-polygon.json");
-      console.error("Please run the full deployment script first or check the deployment info file.");
       process.exit(1);
     }
 
@@ -73,20 +72,8 @@ async function main() {
       htlc: existingHtlc
     };
 
-    // 1. Deploy SwapSageExecutor
-    console.log("\n1️⃣ Deploying SwapSageExecutor...");
-    const SwapSageExecutor = await ethers.getContractFactory("SwapSageExecutor");
-    const executor = await SwapSageExecutor.connect(deployer).deploy(existingOracle, {
-      gasLimit: 1200000,
-      gasPrice: gasPrice.gasPrice
-    });
-    await executor.waitForDeployment();
-    const executorAddress = await executor.getAddress();
-    deployedContracts.executor = executorAddress;
-    console.log(`   ✅ SwapSageExecutor deployed to: ${executorAddress}`);
-
-    // 2. Deploy SimpleHTLC
-    console.log("\n2️⃣ Deploying SimpleHTLC...");
+    // 1. Deploy SimpleHTLC
+    console.log("\n1️⃣ Deploying SimpleHTLC...");
     const SimpleHTLC = await ethers.getContractFactory("SimpleHTLC");
     const simpleHtlc = await SimpleHTLC.connect(deployer).deploy({
       gasLimit: 800000,
@@ -97,8 +84,8 @@ async function main() {
     deployedContracts.simpleHtlc = simpleHtlcAddress;
     console.log(`   ✅ SimpleHTLC deployed to: ${simpleHtlcAddress}`);
 
-    // 3. Deploy MockERC20
-    console.log("\n3️⃣ Deploying MockERC20...");
+    // 2. Deploy MockERC20
+    console.log("\n2️⃣ Deploying MockERC20...");
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     const mockToken = await MockERC20.connect(deployer).deploy("Mock USDC", "mUSDC", {
       gasLimit: 600000,
@@ -108,47 +95,6 @@ async function main() {
     const mockTokenAddress = await mockToken.getAddress();
     deployedContracts.mockToken = mockTokenAddress;
     console.log(`   ✅ MockERC20 deployed to: ${mockTokenAddress}`);
-
-    // 4. Set up permissions and configurations
-    console.log("\n4️⃣ Setting up contract permissions...");
-    
-    // Get contract instances
-    const oracle = await ethers.getContractAt("SwapSageOracle", existingOracle);
-    const htlc = await ethers.getContractAt("SwapSageHTLC", existingHtlc);
-
-    // Authorize Executor in Oracle
-    const authTx = await oracle.connect(deployer).setAuthorizedOracle(executorAddress, true, {
-      gasLimit: 100000,
-      gasPrice: gasPrice.gasPrice
-    });
-    await authTx.wait();
-    console.log("   ✅ Authorized Executor in Oracle");
-
-    // Update Oracle in HTLC (if needed)
-    const updateTx = await htlc.connect(deployer).updateOracle(existingOracle, {
-      gasLimit: 100000,
-      gasPrice: gasPrice.gasPrice
-    });
-    await updateTx.wait();
-    console.log("   ✅ Updated Oracle in HTLC");
-
-    // 5. Initialize some price feeds
-    console.log("\n5️⃣ Initializing price feeds...");
-    
-    // Set initial price feeds
-    const ethPriceTx = await oracle.connect(deployer).updatePriceFeed("0x0000000000000000000000000000000000000000", 2000000000, {
-      gasLimit: 100000,
-      gasPrice: gasPrice.gasPrice
-    });
-    await ethPriceTx.wait();
-    
-    const mockPriceTx = await oracle.connect(deployer).updatePriceFeed(mockTokenAddress, 100000000, {
-      gasLimit: 100000,
-      gasPrice: gasPrice.gasPrice
-    });
-    await mockPriceTx.wait();
-    
-    console.log("   ✅ Initialized price feeds");
 
     // Update deployment info
     deploymentInfo.contracts = deployedContracts;
@@ -173,73 +119,35 @@ async function main() {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     console.log("📄 Updated deployment-config.json");
 
-    // Verify contracts on Polygonscan
-    console.log("\n🔍 Verifying contracts on Polygonscan...");
-    
-    if (process.env.POLYGONSCAN_API_KEY) {
-      try {
-        await verifyContract("SwapSageExecutor", executorAddress, [existingOracle]);
-        await verifyContract("SimpleHTLC", simpleHtlcAddress, []);
-        await verifyContract("MockERC20", mockTokenAddress, ["Mock USDC", "mUSDC"]);
-        console.log("✅ All contracts verified on Polygonscan!");
-      } catch (error) {
-        console.log("⚠️ Some contracts failed verification:", error.message);
-      }
-    } else {
-      console.log("⚠️ POLYGONSCAN_API_KEY not set, skipping verification");
-    }
-
     // Display deployment summary
-    console.log("\n🎉 Remaining Contracts Deployment Complete!");
-    console.log("=" * 60);
-    console.log("📋 All Contract Addresses:");
+    console.log("\n🎉 Simple Contracts Deployment Complete!");
+    console.log("=" * 50);
+    console.log("📋 Contract Addresses:");
     console.log(`   SwapSageOracle: ${existingOracle}`);
     console.log(`   SwapSageHTLC: ${existingHtlc}`);
-    console.log(`   SwapSageExecutor: ${executorAddress}`);
     console.log(`   SimpleHTLC: ${simpleHtlcAddress}`);
     console.log(`   MockERC20: ${mockTokenAddress}`);
     
     console.log("\n🔗 Polygonscan Links:");
     console.log(`   SwapSageOracle: https://polygonscan.com/address/${existingOracle}`);
     console.log(`   SwapSageHTLC: https://polygonscan.com/address/${existingHtlc}`);
-    console.log(`   SwapSageExecutor: https://polygonscan.com/address/${executorAddress}`);
     console.log(`   SimpleHTLC: https://polygonscan.com/address/${simpleHtlcAddress}`);
     console.log(`   MockERC20: https://polygonscan.com/address/${mockTokenAddress}`);
 
     console.log("\n📝 Environment Variables for .env.local:");
     console.log(`VITE_ORACLE_CONTRACT_ADDRESS=${existingOracle}`);
     console.log(`VITE_HTLC_CONTRACT_ADDRESS=${existingHtlc}`);
-    console.log(`VITE_EXECUTOR_CONTRACT_ADDRESS=${executorAddress}`);
     console.log(`VITE_SIMPLE_HTLC_CONTRACT_ADDRESS=${simpleHtlcAddress}`);
     console.log(`VITE_MOCK_TOKEN_ADDRESS=${mockTokenAddress}`);
 
     console.log("\n💡 Next Steps:");
     console.log("1. Update your .env.local file with the new contract addresses");
-    console.log("2. Get a 1inch API key for real swap quotes");
-    console.log("3. Test the app with real Polygon tokens");
-    console.log("4. Monitor contract interactions on Polygonscan");
-    console.log("5. Update the README with the new addresses");
+    console.log("2. Test the SimpleHTLC and MockERC20 functionality");
+    console.log("3. We'll address the SwapSageExecutor deployment separately");
 
   } catch (error) {
     console.error("❌ Deployment failed:", error);
     throw error;
-  }
-}
-
-async function verifyContract(contractName, address, constructorArguments) {
-  console.log(`   Verifying ${contractName}...`);
-  try {
-    await hre.run("verify:verify", {
-      address: address,
-      constructorArguments: constructorArguments,
-    });
-    console.log(`   ✅ ${contractName} verified`);
-  } catch (error) {
-    if (error.message.includes("Already Verified")) {
-      console.log(`   ✅ ${contractName} already verified`);
-    } else {
-      console.log(`   ❌ ${contractName} verification failed: ${error.message}`);
-    }
   }
 }
 

@@ -7,7 +7,7 @@ interface WalletState {
   chainId?: number;
   balance?: string;
   network?: string;
-  provider?: any;
+  provider?: ethers.BrowserProvider | unknown;
 }
 
 interface WalletError {
@@ -93,11 +93,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         accounts = await window.ethereum.request({
           method: 'eth_requestAccounts'
         });
-      } catch (requestError: any) {
+      } catch (requestError: unknown) {
         console.log('⚠️ First attempt failed, trying alternative method...');
         
         // If circuit breaker is open, try alternative connection method
-        if (requestError.code === -32603 && requestError.data?.cause?.isBrokenCircuitError) {
+        const error = requestError as { code?: number; data?: { cause?: { isBrokenCircuitError?: boolean } } };
+        if (error.code === -32603 && error.data?.cause?.isBrokenCircuitError) {
           console.log('🔄 Circuit breaker detected, trying alternative connection...');
           
           // Try to get accounts without requesting (if already approved)

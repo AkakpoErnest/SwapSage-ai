@@ -167,7 +167,7 @@ const TransactionHistory = () => {
     return transactions;
   };
 
-  const determineTransactionType = (tx: any, receipt: any): 'swap' | 'bridge' | 'htlc' | 'refund' | 'claim' => {
+  const determineTransactionType = (tx: { to: string; data: string }, receipt: { logs: Array<{ topics: string[] }> }): 'swap' | 'bridge' | 'htlc' | 'refund' | 'claim' => {
     // Check for HTLC contract interactions
     const htlcContracts = [
       '0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb', // Our HTLC contract
@@ -389,7 +389,6 @@ const TransactionHistory = () => {
             <Button 
               onClick={async () => {
                 try {
-                  const { connectEthereum } = useWalletContext();
                   await connectEthereum();
                 } catch (error) {
                   console.error('Failed to connect wallet:', error);

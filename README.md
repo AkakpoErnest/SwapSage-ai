@@ -23,18 +23,48 @@ SwapSage AI eliminates the need for trusted intermediaries by using **atomic swa
 
 **🌐 Try it now:** [SwapSage AI Cross-Chain Bridge](http://localhost:8080)
 
-## 📍 **Live Contract Addresses (Polygon Mainnet)**
+## 📍 **Live Contract Addresses**
 
-### **Deployed Contracts:**
-- **SwapSageOracle**: [`0xfB92409880a6c04FeDb1d4FD5a498699D48a5492`](https://polygonscan.com/address/0xfB92409880a6c04FeDb1d4FD5a498699D48a5492)
-- **SwapSageHTLC**: [`0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1`](https://polygonscan.com/address/0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1)
+### **🌐 Polygon Mainnet (Production)**
+**Deployed Contracts:**
+- **SwapSageOracle**: [`0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e`](https://polygonscan.com/address/0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e)
+- **SwapSageHTLC**: [`0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb`](https://polygonscan.com/address/0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb)
+- **SwapSageExecutor**: [`0x933672776E1e04C2C73bED443c2dCAB566bE0CC5`](https://polygonscan.com/address/0x933672776E1e04C2C73bED443c2dCAB566bE0CC5)
+- **SimpleHTLC**: [`0x431D2d3E65c7511dA9876a2d43043f04A7eDBb24`](https://polygonscan.com/address/0x431D2d3E65c7511dA9876a2d43043f04A7eDBb24)
+- **MockERC20**: [`0x4e329608BbaeA87656fBDC5EFb755d079C5E4254`](https://polygonscan.com/address/0x4e329608BbaeA87656fBDC5EFb755d079C5E4254)
 
-### **Environment Variables:**
+**Environment Variables for Polygon:**
 ```bash
 # Add to your .env.local file
-VITE_ORACLE_CONTRACT_ADDRESS=0xfB92409880a6c04FeDb1d4FD5a498699D48a5492
-VITE_HTLC_CONTRACT_ADDRESS=0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1
+VITE_ORACLE_CONTRACT_ADDRESS=0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e
+VITE_HTLC_CONTRACT_ADDRESS=0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb
+VITE_EXECUTOR_CONTRACT_ADDRESS=0x933672776E1e04C2C73bED443c2dCAB566bE0CC5
+VITE_SIMPLE_HTLC_CONTRACT_ADDRESS=0x431D2d3E65c7511dA9876a2d43043f04A7eDBb24
+VITE_MOCK_TOKEN_ADDRESS=0x4e329608BbaeA87656fBDC5EFb755d079C5E4254
+```### **🧪 Sepolia Testnet (Development)**
+**Deployed Contracts:**
+- **SwapSageOracle**: [`0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1`](https://sepolia.etherscan.io/address/0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1)
+- **SwapSageHTLC**: [`0xd7c66D8B635152709fbe14E72eF91C9417391f37`](https://sepolia.etherscan.io/address/0xd7c66D8B635152709fbe14E72eF91C9417391f37)
+- **SwapSageExecutor**: [`0x9209383Dd4fce1bF82aA26c6476Bbf795d1DfF48`](https://sepolia.etherscan.io/address/0x9209383Dd4fce1bF82aA26c6476Bbf795d1DfF48)
+- **MockERC20**: [`0xE560De00F664dE3C0B3815dd1AF4b6DF64123563`](https://sepolia.etherscan.io/address/0xE560De00F664dE3C0B3815dd1AF4b6DF64123563)
+
+**Environment Variables for Sepolia:**
+```bash
+# Add to your .env.local file
+VITE_ORACLE_CONTRACT_ADDRESS=0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1
+VITE_HTLC_CONTRACT_ADDRESS=0xd7c66D8B635152709fbe14E72eF91C9417391f37
+VITE_EXECUTOR_CONTRACT_ADDRESS=0x9209383Dd4fce1bF82aA26c6476Bbf795d1DfF48
+VITE_MOCK_TOKEN_ADDRESS=0xE560De00F664dE3C0B3815dd1AF4b6DF64123563
 ```
+
+### **⚠️ Important Note: 1inch API Integration**
+**The 1inch API only supports mainnet networks and does not work with testnets.** To access real swap quotes and full functionality, you need to use mainnet deployments:
+
+- **✅ Polygon Mainnet**: Full 1inch API support with real quotes
+- **❌ Sepolia Testnet**: Demo mode only, no real 1inch quotes
+- **❌ Other Testnets**: No 1inch API support
+
+**For production use with real trading, deploy to Polygon mainnet or Ethereum mainnet.**
 
 ## ✨ Key Features
 
@@ -339,21 +369,27 @@ npm run preview
 
 ## 🚀 Deployment Options
 
-### **Option 1: Polygon (✅ DEPLOYED - $0.05)**
+### **Option 1: Polygon (✅ FULLY DEPLOYED - $0.05)**
 ```bash
 # Deploy to Polygon for full functionality
 npx hardhat run scripts/deploy-polygon.cjs --network polygon
 ```
 
 **✅ Successfully Deployed:**
-- SwapSageOracle: `0xfB92409880a6c04FeDb1d4FD5a498699D48a5492`
-- SwapSageHTLC: `0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1`
+- SwapSageOracle: `0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e`
+- SwapSageHTLC: `0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb`
+- SwapSageExecutor: `0x933672776E1e04C2C73bED443c2dCAB566bE0CC5`
+- SimpleHTLC: `0x431D2d3E65c7511dA9876a2d43043f04A7eDBb24`
+- MockERC20: `0x4e329608BbaeA87656fBDC5EFb755d079C5E4254`
+
+
 
 **🌐 View on Polygonscan:**
-- [Oracle Contract](https://polygonscan.com/address/0xfB92409880a6c04FeDb1d4FD5a498699D48a5492)
-- [HTLC Contract](https://polygonscan.com/address/0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1)
-
-### **Option 2: Single Contract (Ethereum - $50-100)**
+- [Oracle Contract](https://polygonscan.com/address/0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e)
+- [HTLC Contract](https://polygonscan.com/address/0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb)
+- [Executor Contract](https://polygonscan.com/address/0x933672776E1e04C2C73bED443c2dCAB566bE0CC5)
+- [SimpleHTLC Contract](https://polygonscan.com/address/0x431D2d3E65c7511dA9876a2d43043f04A7eDBb24)
+- [MockERC20 Contract](https://polygonscan.com/address/0x4e329608BbaeA87656fBDC5EFb755d079C5E4254)### **Option 2: Single Contract (Ethereum - $50-100)**
 ```bash
 # Deploy single contract to Ethereum mainnet
 npx hardhat run scripts/deploy-single-mainnet.js --network mainnet
@@ -381,16 +417,17 @@ npx hardhat run scripts/deploy-testnet.js --network sepolia
 
 ### **✅ What's Working:**
 - **Polygon Mainnet Deployment**: Oracle and HTLC contracts deployed
+- **Sepolia Testnet Deployment**: All contracts deployed (Oracle, HTLC, Executor, MockERC20)
 - **Cross-Chain Bridge**: Polygon ↔ Stellar swap functionality
 - **AI Interface**: Natural language swap commands
-- **Real-time Quotes**: 1inch API integration on Polygon
+- **Real-time Quotes**: 1inch API integration on Polygon mainnet
 - **Security**: HTLC atomic swap mechanics
 
 ### **🔄 Next Steps:**
-1. **Complete Remaining Contracts**: Deploy SwapSageExecutor and SimpleHTLC
-2. **Contract Verification**: Verify contracts on Polygonscan
-3. **Testing**: Test full Polygon ↔ Stellar swap flow
-4. **Production**: Deploy frontend to production
+1. **Complete Polygon Deployment**: Deploy remaining contracts (SwapSageExecutor, SimpleHTLC, MockERC20)
+2. **Contract Verification**: Verify all contracts on Polygonscan
+3. **Testing**: Test full Polygon ↔ Stellar swap flow with real 1inch quotes
+4. **Production**: Deploy frontend to production with mainnet integration
 5. **Monitoring**: Set up transaction monitoring and alerts
 
 ### **🐛 Known Issues:**

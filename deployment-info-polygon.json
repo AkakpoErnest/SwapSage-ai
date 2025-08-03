@@ -2,9 +2,12 @@
   "network": "polygon",
   "chainId": 137,
   "deployer": "0xF9c3F6011C6C9036b99fa67Fb3ea4A7EBdcC76cB",
-  "timestamp": "2025-01-27T09:15:00.000Z",
+  "timestamp": "2025-08-03T02:33:42.277Z",
   "contracts": {
     "oracle": "0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e",
-    "htlc": "0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb"
+    "htlc": "0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb",
+    "mockToken": "0x4e329608BbaeA87656fBDC5EFb755d079C5E4254",
+    "simpleHtlc": "0x431D2d3E65c7511dA9876a2d43043f04A7eDBb24",
+    "executor": "0x933672776E1e04C2C73bED443c2dCAB566bE0CC5"
   }
-} 
+}
