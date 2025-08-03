@@ -14,7 +14,7 @@ const Header: React.FC = () => {
   const [isConnectingMetaMask, setIsConnectingMetaMask] = useState(false);
   const [isConnectingFreighter, setIsConnectingFreighter] = useState(false);
   
-  console.log('Header wallet state:', walletState);
+  // Wallet state management
 
   // Check wallet installation status
   const getWalletStatus = (walletName: string) => {
@@ -35,17 +35,12 @@ const Header: React.FC = () => {
   };
 
   const handleNetworkSelect = async (network: 'ethereum' | 'stellar') => {
-    console.log('Network selected:', network);
-    
     if (network === 'ethereum') {
       setIsConnectingMetaMask(true);
       
       try {
-        console.log('Attempting to connect Ethereum...');
         await connectEthereum();
-        console.log('Ethereum connection completed');
       } catch (error: any) {
-        console.error('Connection error:', error);
         if (error.message?.includes('MetaMask is not installed')) {
           alert('MetaMask is not installed! Please install MetaMask to continue.');
           window.open('https://metamask.io/download/', '_blank');
@@ -59,11 +54,8 @@ const Header: React.FC = () => {
       setIsConnectingFreighter(true);
       
       try {
-        console.log('Attempting to connect Stellar...');
         await connectStellar();
-        console.log('Stellar connection completed');
       } catch (error: any) {
-        console.error('Connection error:', error);
         if (error.message?.includes('Freighter is not installed')) {
           alert('Freighter is not installed! Please install Freighter to continue.');
           window.open('https://www.freighter.app/', '_blank');

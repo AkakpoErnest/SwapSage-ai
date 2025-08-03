@@ -220,13 +220,15 @@ class CrossChainBridge {
   /**
    * Complete a swap using the secret (Demo Version)
    */
-  async completeSwap(swapId: string, secret: string): Promise<SwapStatus> {
+  async completeSwap(swapId: string, secret: string, chain?: 'polygon' | 'stellar'): Promise<SwapStatus> {
     const swap = this.swaps.get(swapId);
     if (!swap) {
       throw new Error('Swap not found');
     }
 
-    if (swap.secret !== secret) {
+    // Verify the secret matches the hashlock
+    const secretHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+    if (secretHash !== swap.hashlock) {
       throw new Error('Invalid secret');
     }
 
@@ -234,6 +236,7 @@ class CrossChainBridge {
     swap.status = 'completed';
     swap.completedAt = Date.now();
     swap.receivedAmount = swap.amount;
+    swap.secret = secret;
 
     console.log('✅ Swap completed (Demo):', swap);
     return swap;
@@ -242,7 +245,7 @@ class CrossChainBridge {
   /**
    * Refund a swap (Demo Version)
    */
-  async refundSwap(swapId: string): Promise<SwapStatus> {
+  async refundSwap(swapId: string, chain?: 'polygon' | 'stellar'): Promise<SwapStatus> {
     const swap = this.swaps.get(swapId);
     if (!swap) {
       throw new Error('Swap not found');
@@ -254,6 +257,33 @@ class CrossChainBridge {
 
     console.log('🔄 Swap refunded (Demo):', swap);
     return swap;
+  }
+
+  /**
+   * Get detailed swap information including HTLC details
+   */
+  async getSwapDetails(swapId: string): Promise<any> {
+    const swap = this.swaps.get(swapId);
+    if (!swap) {
+      throw new Error('Swap not found');
+    }
+
+    return {
+      id: swap.id,
+      hashlock: swap.hashlock,
+      timelock: swap.timelock,
+      amount: swap.amount,
+      asset: swap.fromToken,
+      status: swap.status,
+      fromChain: swap.fromChain,
+      toChain: swap.toChain,
+      fromAddress: swap.fromAddress,
+      toAddress: swap.toAddress,
+      createdAt: swap.createdAt,
+      completedAt: swap.completedAt,
+      ethereumTxHash: swap.ethereumTxHash,
+      stellarTxHash: swap.stellarTxHash
+    };
   }
 
   /**

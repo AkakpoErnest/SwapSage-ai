@@ -17,7 +17,11 @@
     "deploy:polygon": "hardhat run scripts/deploy-testnet.js --network polygon",
     "node": "hardhat node",
     "clean": "hardhat clean",
-    "verify": "hardhat verify"
+    "verify": "hardhat verify",
+    "validate:env": "node scripts/validate-env.js",
+    "generate:stellar-keypair": "node scripts/generate-stellar-keypair.js",
+    "test:htlc-security": "node scripts/test-htlc-security.js",
+    "predeploy": "npm run validate:env && npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

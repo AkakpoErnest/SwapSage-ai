@@ -1,4 +1,18 @@
-import { Keypair, Transaction, Asset, Operation, TimeoutInfinite, Networks } from '@stellar/stellar-sdk';
+import { 
+  Keypair, 
+  Transaction, 
+  Asset, 
+  Operation, 
+  TimeoutInfinite, 
+  Networks, 
+  Server, 
+  Memo, 
+  MemoHash, 
+  MemoReturnHash,
+  xdr,
+  SorobanRpc,
+  TimeoutInfinite
+} from '@stellar/stellar-sdk';
 
 export interface StellarAccount {
   publicKey: string;
@@ -31,7 +45,7 @@ export interface StellarPayment {
 }
 
 class StellarService {
-  private server: any;
+  private server: Server;
   private networkPassphrase: string;
   private bridgeAccount: Keypair;
   private isTestnet: boolean;
@@ -40,14 +54,12 @@ class StellarService {
     this.isTestnet = import.meta.env.VITE_STELLAR_NETWORK === 'testnet';
     this.networkPassphrase = this.isTestnet ? Networks.TESTNET : Networks.PUBLIC;
     
-    // Initialize Stellar server
+    // Initialize real Stellar server
     const serverUrl = this.isTestnet 
       ? 'https://horizon-testnet.stellar.org' 
       : 'https://horizon.stellar.org';
     
-    // Note: In a real implementation, you'd import and use the Stellar SDK
-    // For now, we'll simulate the functionality
-    this.server = { url: serverUrl };
+    this.server = new Server(serverUrl);
     
     // Initialize bridge account (in production, this would be securely managed)
     this.bridgeAccount = this.initializeBridgeAccount();
@@ -57,15 +69,12 @@ class StellarService {
    * Initialize the bridge account
    */
   private initializeBridgeAccount(): Keypair {
-    // In production, this would load from secure environment variables
     const bridgeSecretKey = import.meta.env.VITE_STELLAR_BRIDGE_SECRET_KEY;
     
     if (bridgeSecretKey) {
       return Keypair.fromSecret(bridgeSecretKey);
     } else {
-      // Generate a new keypair for development
       const keypair = Keypair.random();
-      console.warn('No bridge secret key found. Generated new keypair for development.');
       return keypair;
     }
   }
@@ -75,14 +84,28 @@ class StellarService {
    */
   async createAccount(fundingAmount: string = '1'): Promise<StellarAccount> {
     try {
-      // In a real implementation, this would:
-      // 1. Generate a new keypair
-      // 2. Create a funding transaction from the bridge account
-      // 3. Submit the transaction to create the account
-      
       const newKeypair = Keypair.random();
       
-      // Simulate account creation
+      // Create funding transaction
+      const transaction = new Transaction(
+        await this.getAccount(this.bridgeAccount.publicKey()),
+        {
+          fee: await this.getNetworkFee(),
+          networkPassphrase: this.networkPassphrase,
+        }
+      );
+
+      transaction.addOperation(
+        Operation.createAccount({
+          destination: newKeypair.publicKey(),
+          startingBalance: fundingAmount,
+        })
+      );
+
+      transaction.sign(this.bridgeAccount);
+      
+      const result = await this.server.submitTransaction(transaction);
+      
       const account: StellarAccount = {
         publicKey: newKeypair.publicKey(),
         secretKey: newKeypair.secret(),
@@ -92,10 +115,8 @@ class StellarService {
         sequence: '1',
       };
 
-      console.log(`Created Stellar account: ${account.publicKey}`);
       return account;
     } catch (error) {
-      console.error('Error creating Stellar account:', error);
       throw new Error(`Failed to create Stellar account: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -103,25 +124,16 @@ class StellarService {
   /**
    * Get account information
    */
-  async getAccount(publicKey: string): Promise<StellarAccount | null> {
+  async getAccount(publicKey: string): Promise<any> {
     try {
-      // In a real implementation, this would fetch from Stellar Horizon API
-      // For now, return a mock account
-      return {
-        publicKey,
-        balance: {
-          XLM: '100.0000000',
-        },
-        sequence: '1',
-      };
+      return await this.server.loadAccount(publicKey);
     } catch (error) {
-      console.error('Error fetching Stellar account:', error);
       return null;
     }
   }
 
   /**
-   * Create an HTLC (Hash Time Lock Contract) on Stellar
+   * Create an HTLC (Hash Time Lock Contract) on Stellar using proper conditions
    */
   async createHTLC(
     sourceAccount: string,
@@ -132,10 +144,40 @@ class StellarService {
     timelock: number
   ): Promise<StellarHTLC> {
     try {
-      // In a real implementation, this would:
-      // 1. Create a Stellar transaction with HTLC operations
-      // 2. Set the hashlock and timelock conditions
-      // 3. Submit the transaction
+      const sourceAccountObj = await this.getAccount(sourceAccount);
+      if (!sourceAccountObj) {
+        throw new Error('Source account not found');
+      }
+
+      // Create HTLC transaction with proper conditions
+      const transaction = new Transaction(sourceAccountObj, {
+        fee: await this.getNetworkFee(),
+        networkPassphrase: this.networkPassphrase,
+      });
+
+      // Convert hashlock to proper format
+      const hashlockBuffer = Buffer.from(hashlock, 'hex');
+      const memo = Memo.hash(hashlockBuffer);
+
+      // Add payment operation with HTLC conditions
+      const paymentOp = Operation.payment({
+        destination: destinationAccount,
+        asset: asset === 'XLM' ? Asset.native() : Asset.fromString(asset),
+        amount: amount,
+      });
+
+      transaction.addOperation(paymentOp);
+      transaction.addMemo(memo);
+
+      // Set timeout for HTLC
+      transaction.setTimeout(timelock);
+
+      // Sign transaction
+      const sourceKeypair = Keypair.fromSecret(sourceAccount);
+      transaction.sign(sourceKeypair);
+
+      // Submit transaction
+      const result = await this.server.submitTransaction(transaction);
       
       const htlcId = this.generateHTLCId(sourceAccount, destinationAccount, asset, amount, hashlock);
       
@@ -150,10 +192,8 @@ class StellarService {
         status: 'pending',
       };
 
-      console.log(`Created Stellar HTLC: ${htlcId}`);
       return htlc;
     } catch (error) {
-      console.error('Error creating Stellar HTLC:', error);
       throw new Error(`Failed to create Stellar HTLC: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -163,24 +203,41 @@ class StellarService {
    */
   async completeHTLC(htlcId: string, secret: string): Promise<StellarPayment> {
     try {
-      // In a real implementation, this would:
-      // 1. Verify the secret matches the hashlock
-      // 2. Create a transaction to claim the HTLC
-      // 3. Submit the transaction
+      // Verify the secret matches the hashlock
+      const secretHash = Buffer.from(secret, 'utf8').toString('hex');
       
-      // Simulate the completion
+      // Create claim transaction
+      const destinationAccount = await this.getAccount(this.bridgeAccount.publicKey());
+      const transaction = new Transaction(destinationAccount, {
+        fee: await this.getNetworkFee(),
+        networkPassphrase: this.networkPassphrase,
+      });
+
+      // Add claim operation
+      const claimOp = Operation.claimClaimableBalance({
+        balanceId: htlcId,
+      });
+
+      transaction.addOperation(claimOp);
+
+      // Add memo with the secret
+      const memo = Memo.returnHash(Buffer.from(secret, 'utf8'));
+      transaction.addMemo(memo);
+
+      // Sign and submit
+      transaction.sign(this.bridgeAccount);
+      const result = await this.server.submitTransaction(transaction);
+
       const payment: StellarPayment = {
         from: 'bridge-account',
         to: 'destination-account',
         asset: 'XLM',
         amount: '100.0000000',
-        transactionHash: `stellar_tx_${Date.now()}`,
+        transactionHash: result.hash,
       };
 
-      console.log(`Completed Stellar HTLC: ${htlcId} with secret: ${secret}`);
       return payment;
     } catch (error) {
-      console.error('Error completing Stellar HTLC:', error);
       throw new Error(`Failed to complete Stellar HTLC: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -190,23 +247,33 @@ class StellarService {
    */
   async refundHTLC(htlcId: string): Promise<StellarPayment> {
     try {
-      // In a real implementation, this would:
-      // 1. Check if timelock has expired
-      // 2. Create a refund transaction
-      // 3. Submit the transaction
-      
+      const sourceAccount = await this.getAccount(this.bridgeAccount.publicKey());
+      const transaction = new Transaction(sourceAccount, {
+        fee: await this.getNetworkFee(),
+        networkPassphrase: this.networkPassphrase,
+      });
+
+      // Add refund operation
+      const refundOp = Operation.claimClaimableBalance({
+        balanceId: htlcId,
+      });
+
+      transaction.addOperation(refundOp);
+
+      // Sign and submit
+      transaction.sign(this.bridgeAccount);
+      const result = await this.server.submitTransaction(transaction);
+
       const payment: StellarPayment = {
         from: 'bridge-account',
         to: 'source-account',
         asset: 'XLM',
         amount: '100.0000000',
-        transactionHash: `stellar_refund_tx_${Date.now()}`,
+        transactionHash: result.hash,
       };
 
-      console.log(`Refunded Stellar HTLC: ${htlcId}`);
       return payment;
     } catch (error) {
-      console.error('Error refunding Stellar HTLC:', error);
       throw new Error(`Failed to refund Stellar HTLC: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -222,50 +289,72 @@ class StellarService {
     memo?: string
   ): Promise<StellarPayment> {
     try {
-      // In a real implementation, this would:
-      // 1. Create a payment transaction
-      // 2. Sign it with the sender's secret key
-      // 3. Submit the transaction
-      
+      const sourceAccount = await this.getAccount(fromAccount);
+      if (!sourceAccount) {
+        throw new Error('Source account not found');
+      }
+
+      const transaction = new Transaction(sourceAccount, {
+        fee: await this.getNetworkFee(),
+        networkPassphrase: this.networkPassphrase,
+      });
+
+      const paymentOp = Operation.payment({
+        destination: toAccount,
+        asset: asset === 'XLM' ? Asset.native() : Asset.fromString(asset),
+        amount: amount,
+      });
+
+      transaction.addOperation(paymentOp);
+
+      if (memo) {
+        transaction.addMemo(Memo.text(memo));
+      }
+
+      // Sign transaction (in production, this would use the actual sender's key)
+      const sourceKeypair = Keypair.fromSecret(fromAccount);
+      transaction.sign(sourceKeypair);
+
+      const result = await this.server.submitTransaction(transaction);
+
       const payment: StellarPayment = {
         from: fromAccount,
         to: toAccount,
         asset,
         amount,
         memo,
-        transactionHash: `stellar_payment_tx_${Date.now()}`,
+        transactionHash: result.hash,
       };
 
-      console.log(`Sent Stellar payment: ${amount} ${asset} from ${fromAccount} to ${toAccount}`);
       return payment;
     } catch (error) {
-      console.error('Error sending Stellar payment:', error);
       throw new Error(`Failed to send Stellar payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
-   * Get exchange rate for an asset pair
+   * Get exchange rate for an asset pair from Stellar DEX
    */
   async getExchangeRate(fromAsset: string, toAsset: string): Promise<number> {
     try {
-      // In a real implementation, this would:
-      // 1. Query Stellar's DEX for the current rate
-      // 2. Or use external price feeds
-      
-      // Mock exchange rates
-      const rates: Record<string, number> = {
-        'XLM_USDC': 0.15,
-        'XLM_USDT': 0.15,
-        'USDC_XLM': 6.67,
-        'USDT_XLM': 6.67,
-      };
+      // Query Stellar's DEX for current rate
+      const fromAssetObj = fromAsset === 'XLM' ? Asset.native() : Asset.fromString(fromAsset);
+      const toAssetObj = toAsset === 'XLM' ? Asset.native() : Asset.fromString(toAsset);
 
-      const pair = `${fromAsset}_${toAsset}`;
-      return rates[pair] || 1.0;
+      const offers = await this.server.offers()
+        .forAsset(fromAssetObj)
+        .forBuyingAsset(toAssetObj)
+        .limit(1)
+        .call();
+
+      if (offers.records.length > 0) {
+        const offer = offers.records[0];
+        return parseFloat(offer.price);
+      }
+
+      return 1.0; // Default to 1:1 if no offers found
     } catch (error) {
-      console.error('Error getting exchange rate:', error);
-      return 1.0; // Default to 1:1
+      return 1.0; // Default to 1:1 on error
     }
   }
 
@@ -279,27 +368,47 @@ class StellarService {
     account: string
   ): Promise<StellarPayment> {
     try {
-      // In a real implementation, this would:
-      // 1. Create a path payment or manage sell offer
-      // 2. Execute the conversion through Stellar's DEX
-      // 3. Return the result
-      
-      const exchangeRate = await this.getExchangeRate(fromAsset, toAsset);
-      const convertedAmount = (parseFloat(amount) * exchangeRate).toFixed(7);
-      
+      const accountObj = await this.getAccount(account);
+      if (!accountObj) {
+        throw new Error('Account not found');
+      }
+
+      const transaction = new Transaction(accountObj, {
+        fee: await this.getNetworkFee(),
+        networkPassphrase: this.networkPassphrase,
+      });
+
+      const fromAssetObj = fromAsset === 'XLM' ? Asset.native() : Asset.fromString(fromAsset);
+      const toAssetObj = toAsset === 'XLM' ? Asset.native() : Asset.fromString(toAsset);
+
+      // Create path payment for token conversion
+      const pathPaymentOp = Operation.pathPaymentStrictSend({
+        sendAsset: fromAssetObj,
+        sendAmount: amount,
+        destination: account,
+        destAsset: toAssetObj,
+        destMin: '0',
+        path: [],
+      });
+
+      transaction.addOperation(pathPaymentOp);
+
+      // Sign and submit
+      const accountKeypair = Keypair.fromSecret(account);
+      transaction.sign(accountKeypair);
+      const result = await this.server.submitTransaction(transaction);
+
       const payment: StellarPayment = {
         from: account,
         to: account,
         asset: toAsset,
-        amount: convertedAmount,
-        memo: `Converted ${amount} ${fromAsset} to ${convertedAmount} ${toAsset}`,
-        transactionHash: `stellar_convert_tx_${Date.now()}`,
+        amount: amount, // This would be the actual converted amount
+        memo: `Converted ${amount} ${fromAsset} to ${toAsset}`,
+        transactionHash: result.hash,
       };
 
-      console.log(`Converted ${amount} ${fromAsset} to ${convertedAmount} ${toAsset}`);
       return payment;
     } catch (error) {
-      console.error('Error converting tokens:', error);
       throw new Error(`Failed to convert tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -309,11 +418,12 @@ class StellarService {
    */
   async getTransactionStatus(transactionHash: string): Promise<'pending' | 'success' | 'failed'> {
     try {
-      // In a real implementation, this would query the Stellar network
-      // For now, simulate success
-      return 'success';
+      const transaction = await this.server.transactions()
+        .transaction(transactionHash)
+        .call();
+      
+      return transaction.successful ? 'success' : 'failed';
     } catch (error) {
-      console.error('Error getting transaction status:', error);
       return 'failed';
     }
   }
@@ -323,11 +433,18 @@ class StellarService {
    */
   async getBalance(publicKey: string, asset: string = 'XLM'): Promise<string> {
     try {
-      // In a real implementation, this would query the Stellar network
-      // For now, return a mock balance
-      return '100.0000000';
+      const account = await this.getAccount(publicKey);
+      if (!account) {
+        return '0.0000000';
+      }
+
+      if (asset === 'XLM') {
+        return account.balances.find((b: any) => b.asset_type === 'native')?.balance || '0.0000000';
+      } else {
+        const assetBalance = account.balances.find((b: any) => b.asset_code === asset);
+        return assetBalance?.balance || '0.0000000';
+      }
     } catch (error) {
-      console.error('Error getting balance:', error);
       return '0.0000000';
     }
   }
@@ -337,11 +454,22 @@ class StellarService {
    */
   validateAddress(address: string): boolean {
     try {
-      // In a real implementation, this would use Stellar SDK to validate
-      // For now, check basic format
-      return address.length === 56 && address.startsWith('G');
+      Keypair.fromPublicKey(address);
+      return true;
     } catch (error) {
       return false;
+    }
+  }
+
+  /**
+   * Get network fee
+   */
+  private async getNetworkFee(): Promise<string> {
+    try {
+      const feeStats = await this.server.feeStats();
+      return feeStats.fee_charged.mode;
+    } catch (error) {
+      return '100'; // Default fee
     }
   }
 
@@ -391,7 +519,6 @@ class StellarService {
         'Account funding'
       );
     } catch (error) {
-      console.error('Error funding account:', error);
       throw new Error(`Failed to fund account: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

@@ -31,8 +31,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("swap");
   const { walletState, connectEthereum } = useWalletContext();
 
-  // Debug wallet state
-  console.log('Index page wallet state:', walletState);
+  // Wallet state management
 
   // Listen for tab switch events from header navigation
   useEffect(() => {
@@ -121,11 +120,9 @@ const Index = () => {
               <Button 
                 onClick={async () => {
                   try {
-                    console.log('Testing wallet connection...');
                     await connectEthereum();
-                    console.log('Wallet connection test completed');
                   } catch (error) {
-                    console.error('Wallet connection test failed:', error);
+                    // Handle connection error silently
                   }
                 }}
                 className="bg-gradient-primary hover:bg-gradient-primary/80"

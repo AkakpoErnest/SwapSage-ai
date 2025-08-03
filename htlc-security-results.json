@@ -1,0 +1,38 @@
+[
+  {
+    "test": "HTLC Creation",
+    "passed": "pending",
+    "message": "HTLC created with proper structure",
+    "timestamp": "2025-08-03T03:47:37.473Z"
+  },
+  {
+    "test": "Hashlock Security",
+    "passed": true,
+    "message": "Hashlock verification working correctly",
+    "timestamp": "2025-08-03T03:47:37.474Z"
+  },
+  {
+    "test": "Timelock Security",
+    "passed": true,
+    "message": "Timelock validation working correctly",
+    "timestamp": "2025-08-03T03:47:37.474Z"
+  },
+  {
+    "test": "Double-Spend Prevention",
+    "passed": false,
+    "message": "Double-spend prevention working",
+    "timestamp": "2025-08-03T03:47:37.475Z"
+  },
+  {
+    "test": "Invalid Secret Rejection",
+    "passed": false,
+    "message": "Invalid secrets properly rejected",
+    "timestamp": "2025-08-03T03:47:37.475Z"
+  },
+  {
+    "test": "Atomic Swap Integrity",
+    "passed": true,
+    "message": "Atomic swap integrity maintained",
+    "timestamp": "2025-08-03T03:47:37.475Z"
+  }
+]
