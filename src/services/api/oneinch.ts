@@ -53,9 +53,9 @@ class OneInchAPI {
     this.isDemoMode = !envApiKey || envApiKey === 'demo-key' || envApiKey === 'your_1inch_api_key_here';
     
     if (this.isDemoMode) {
-      console.warn('1inch API key not found, using demo mode with realistic fallback data');
+      throw new Error('1inch API key is required for real swap quotes. Please set VITE_1INCH_API_KEY in your environment variables.');
     }
-    this.apiKey = envApiKey || 'demo-key';
+    this.apiKey = envApiKey;
   }
 
   // Get supported tokens for a chain
@@ -146,7 +146,6 @@ class OneInchAPI {
 
       // Try multiple CORS proxies for reliability
       const corsProxies = [
-        'https://corsproxy.io/?',
         'https://api.allorigins.win/raw?url=',
         'https://cors-anywhere.herokuapp.com/',
         'https://thingproxy.freeboard.io/fetch/',
@@ -188,12 +187,6 @@ class OneInchAPI {
         
         // For testnets, use fallback
         if (chainId === 11155111 || chainId === 80001) {
-          return this.getFallbackSwapQuote(chainId, fromTokenAddress, toTokenAddress, amount, fromAddress, slippage);
-        }
-        
-        // For API errors, try to provide better error messages
-        if (response?.status === 400) {
-          console.warn('1inch API returned 400 error, using fallback quote');
           return this.getFallbackSwapQuote(chainId, fromTokenAddress, toTokenAddress, amount, fromAddress, slippage);
         }
         

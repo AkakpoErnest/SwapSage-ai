@@ -1,5 +1,14 @@
 import { ethers } from 'ethers';
 import { oneInchAPI } from '../api/oneinch';
+import { 
+  Keypair, 
+  Transaction, 
+  Asset, 
+  Operation, 
+  Memo, 
+  Claimant,
+  Networks 
+} from '@stellar/stellar-sdk';
 import StellarSdk from '@stellar/stellar-sdk';
 
 export interface PolygonStellarSwapRequest {
@@ -87,93 +96,53 @@ class PolygonStellarBridge {
   }
 
   /**
-   * Generate a deterministic Stellar account from an Ethereum address
-   */
-  private generateStellarAccountFromEthereum(ethereumAddress: string): any {
-    try {
-      // Create a deterministic seed from the Ethereum address
-      const seed = ethers.keccak256(ethers.toUtf8Bytes(ethereumAddress.toLowerCase()));
-      const seedBytes = ethers.getBytes(seed);
-      
-      // Use the first 32 bytes as the Stellar seed
-      const stellarSeed = Buffer.from(seedBytes.slice(0, 32));
-      
-      // Create Stellar keypair from the seed
-      const keypair = StellarSdk.Keypair.fromRawEd25519Seed(stellarSeed);
-      
-      return keypair;
-    } catch (error) {
-      console.error('Error generating Stellar account from Ethereum address:', error);
-      throw new Error('Failed to generate Stellar account');
-    }
-  }
-
-  /**
    * Initialize bridge with network configuration
    */
   async initialize(polygonRpcUrl: string, stellarNetwork: 'TESTNET' | 'PUBLIC' = 'TESTNET', bridgeSecretKey?: string) {
+    // Initialize Polygon provider
+    this.polygonProvider = new ethers.JsonRpcProvider(polygonRpcUrl);
+    
+    // Set Stellar network
+    this.stellarNetwork = stellarNetwork;
+    this.stellarServer = stellarNetwork === 'TESTNET' 
+      ? 'https://horizon-testnet.stellar.org'
+      : 'https://horizon.stellar.org';
+    
+    // Initialize Stellar server with error handling
     try {
-      console.log('🚀 Initializing Polygon Stellar Bridge...');
+      this.stellarServerInstance = new StellarSdk.Server(this.stellarServer);
       
-      // Initialize Polygon provider with your Infura endpoint
-      const infuraUrl = `https://polygon-mainnet.infura.io/v3/97b69e54c3e2499bb2176c87eb87d163`;
-      this.polygonProvider = new ethers.JsonRpcProvider(infuraUrl);
-      console.log('✅ Polygon provider initialized with Infura');
-      
-      // Set Stellar network
-      this.stellarNetwork = stellarNetwork;
-      this.stellarServer = stellarNetwork === 'TESTNET' 
-        ? 'https://horizon-testnet.stellar.org'
-        : 'https://horizon.stellar.org';
-      
-      // Initialize Stellar server with error handling
-      try {
-        console.log('🔄 Initializing Stellar server...');
-        this.stellarServerInstance = new StellarSdk.Server(this.stellarServer);
-        
-        // Set Stellar network passphrase
-        StellarSdk.Network.use(
-          stellarNetwork === 'TESTNET' 
-            ? StellarSdk.Networks.TESTNET 
-            : StellarSdk.Networks.PUBLIC
-        );
-        console.log('✅ Stellar server initialized successfully');
-      } catch (stellarError) {
-        console.warn('⚠️ Stellar SDK initialization failed, using fallback mode:', stellarError);
-        this.stellarServerInstance = null;
-        // Don't throw error, continue with fallback mode
-      }
+      // Set Stellar network passphrase
+      StellarSdk.Network.use(
+        stellarNetwork === 'TESTNET' 
+          ? StellarSdk.Networks.TESTNET 
+          : StellarSdk.Networks.PUBLIC
+      );
+    } catch (error) {
+      console.warn('Stellar SDK initialization failed, bridge will work in demo mode:', error);
+      this.stellarServerInstance = null;
+    }
 
-      // Setup bridge account - Simplified approach
+    // Setup bridge account
+    if (bridgeSecretKey) {
+      this.bridgeSecretKey = bridgeSecretKey;
+      this.bridgeAccount = StellarSdk.Keypair.fromSecret(bridgeSecretKey);
+      // Bridge account loaded successfully
+    } else {
+      // Use demo bridge account for testing
       try {
-        console.log('🔄 Creating bridge account...');
-        
-        // Create a new bridge account
+        this.bridgeAccount = StellarSdk.Keypair.fromSecret(this.BRIDGE_ACCOUNT_SEED);
+        // Demo bridge account loaded
+      } catch (error) {
+        // Generate new bridge account if demo fails
         this.bridgeAccount = StellarSdk.Keypair.random();
         this.bridgeSecretKey = this.bridgeAccount.secret();
-        
-        console.log('✅ Bridge account created successfully');
-        console.log('📝 Bridge Public Key:', this.bridgeAccount.publicKey());
-        console.log('📝 Bridge Secret Key:', this.bridgeSecretKey);
-        console.log('💡 Bridge account ready for operations');
-        
-      } catch (bridgeError) {
-        console.error('❌ Failed to create bridge account:', bridgeError);
-        // Create a fallback bridge account
-        this.bridgeAccount = {
-          publicKey: () => 'GARHFOVVOB4CQIXQLQI5JW5BJL574IF7N4A6QJE4B4XB6UADXQBCBPXT',
-          secret: () => 'SAZZJ2X2LXTXTNOTIUP3RXGQYXT7OU66ME4YYC57AQ54MJKGJJ7GHRB6'
-        };
-        this.bridgeSecretKey = this.bridgeAccount.secret();
-        console.log('✅ Using fallback bridge account for demo');
+        // New bridge account generated
+        // IMPORTANT: Fund this account with XLM for bridge operations!
       }
-
-      console.log('🎉 Bridge initialization completed successfully!');
-      
-    } catch (error) {
-      console.error('❌ Bridge initialization failed:', error);
-      throw new Error(`Bridge initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+
+    // Bridge initialized successfully
   }
 
   /**
@@ -181,10 +150,12 @@ class PolygonStellarBridge {
    */
   async getBridgeQuote(request: PolygonStellarSwapRequest): Promise<any> {
     try {
-      // For cross-chain swaps, we don't validate addresses here
-      // The system will automatically create or use appropriate wallets
-      if (request.fromChain === 'polygon' && request.toChain === 'stellar') {
-        console.log('🔄 Cross-chain swap: Will automatically handle Stellar wallet creation');
+      // Validate addresses
+      if (request.fromChain === 'stellar' && !this.isValidStellarAddress(request.recipient)) {
+        throw new Error('Invalid Stellar recipient address');
+      }
+      if (request.toChain === 'stellar' && !this.isValidStellarAddress(request.recipient)) {
+        throw new Error('Invalid Stellar recipient address');
       }
 
       // Try 1inch Fusion first if enabled and applicable
@@ -204,23 +175,6 @@ class PolygonStellarBridge {
   }
 
   /**
-   * Get token address from symbol
-   */
-  private getTokenAddress(symbol: string): string {
-    const tokenMap: Record<string, string> = {
-      'MATIC': '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
-      'WMATIC': '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
-      'USDC': '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
-      'DAI': '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
-      'USDT': '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
-      'WETH': '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
-      'ETH': '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
-    };
-    
-    return tokenMap[symbol] || symbol; // Return symbol if not found (for Stellar tokens)
-  }
-
-  /**
    * Get 1inch Fusion quote for optimal routing
    */
   private async get1inchFusionQuote(request: PolygonStellarSwapRequest): Promise<any> {
@@ -228,16 +182,10 @@ class PolygonStellarBridge {
       throw new Error('Cannot swap the same token. Please select different tokens.');
     }
 
-    // Get proper token addresses
-    const fromTokenAddress = this.getTokenAddress(request.fromToken);
-    const toTokenAddress = this.getTokenAddress(request.toToken);
-
-    console.log(`🔄 Getting 1inch quote: ${request.fromToken} (${fromTokenAddress}) → ${request.toToken} (${toTokenAddress})`);
-
     const quote = await oneInchAPI.getSwapQuote(
       137, // Polygon chain ID
-      fromTokenAddress,
-      toTokenAddress,
+      request.fromToken,
+      request.toToken,
       request.fromAmount,
       request.recipient,
       1 // slippage
@@ -284,11 +232,11 @@ class PolygonStellarBridge {
   }
 
   /**
-   * Execute Polygon to Stellar swap with 1inch Fusion optimization
+   * Execute Polygon to Stellar swap
    */
   async executePolygonToStellarSwap(request: PolygonStellarSwapRequest): Promise<PolygonStellarSwapResult> {
     try {
-      // Executing Polygon → Stellar swap with 1inch Fusion
+      // Executing Polygon → Stellar swap
       
       // Generate secret and hashlock
       const secret = ethers.hexlify(ethers.randomBytes(32));
@@ -297,67 +245,11 @@ class PolygonStellarBridge {
       // Calculate timelock (24 hours from now)
       const timelock = Math.floor(Date.now() / 1000) + (24 * 60 * 60);
       
-      // Enhanced flow: MATIC → USDC (via 1inch) → XLM (via bridge)
-      let oneinchRoute = null;
-      let intermediateAmount = request.fromAmount;
+      // Get quote
+      const quote = await this.getBridgeQuote(request);
       
-      // If swapping MATIC to XLM, first get optimal MATIC → USDC quote via 1inch
-      if (request.fromToken === 'MATIC' && request.toToken === 'XLM' && request.use1inchFusion) {
-        try {
-          console.log('🔄 Getting 1inch Fusion quote for MATIC → USDC...');
-          const oneinchQuote = await oneInchAPI.getSwapQuote(
-            137, // Polygon chain ID
-            '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
-            '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // USDC
-            ethers.parseEther(request.fromAmount).toString(),
-            request.recipient,
-            1 // 1% slippage
-          );
-          
-          oneinchRoute = oneinchQuote;
-          intermediateAmount = ethers.formatUnits(oneinchQuote.toTokenAmount, 6); // USDC has 6 decimals
-          console.log(`✅ 1inch Fusion: ${request.fromAmount} MATIC → ${intermediateAmount} USDC`);
-        } catch (error) {
-          console.warn('⚠️ 1inch Fusion failed, using traditional route:', error);
-        }
-      }
-      
-      // Get bridge quote (USDC → XLM)
-      const bridgeRequest = {
-        ...request,
-        fromToken: oneinchRoute ? 'USDC' : request.fromToken,
-        fromAmount: intermediateAmount
-      };
-      const quote = await this.getBridgeQuote(bridgeRequest);
-      
-      // For Polygon → Stellar swaps, create or use user's Stellar account
-      let stellarAccount = request.recipient;
-      if (request.fromChain === 'polygon' && request.toChain === 'stellar') {
-        try {
-          // Check if user has a Stellar wallet stored
-          const userStellarWallet = localStorage.getItem('stellarWalletAddress');
-          
-          if (userStellarWallet && this.isValidStellarAddress(userStellarWallet)) {
-            // Use user's existing Stellar wallet
-            stellarAccount = userStellarWallet;
-            console.log(`✅ Using user's existing Stellar wallet: ${stellarAccount}`);
-          } else {
-            // Create a new Stellar account for the user
-            console.log('🔄 Creating new Stellar account for user...');
-            const newStellarAccount = await this.createStellarAccount(request.recipient);
-            stellarAccount = newStellarAccount;
-            
-            // Store the new account for future use
-            localStorage.setItem('stellarWalletAddress', stellarAccount);
-            console.log(`✅ Created and stored new Stellar account: ${stellarAccount}`);
-            console.log(`💡 User should fund this account with XLM to receive funds`);
-          }
-        } catch (error) {
-          console.warn('⚠️ Failed to create Stellar account, using fallback:', error);
-          // Fallback: use a known funded account
-          stellarAccount = 'GARHFOVVOB4CQIXQLQI5JW5BJL574IF7N4A6QJE4B4XB6UADXQBCBPXT';
-        }
-      }
+      // Create Stellar account if needed
+      const stellarAccount = await this.createStellarAccount(request.recipient);
       
       // Create Stellar HTLC
       const stellarHTLC = await this.createStellarHTLC(
@@ -412,8 +304,7 @@ class PolygonStellarBridge {
         hashlock: hashlock,
         timelock,
         estimatedTime: quote.estimatedTime,
-        stellarAccount,
-        oneinchRoute // Include 1inch Fusion route data
+        stellarAccount
       };
     } catch (error) {
       throw error;
@@ -553,67 +444,51 @@ class PolygonStellarBridge {
    */
   private async createStellarAccount(recipient: string): Promise<string> {
     try {
-      console.log(`📝 Creating new Stellar account for user...`);
-      
-      if (!this.bridgeAccount) {
-        throw new Error('Bridge account not initialized');
-      }
-      
-      // Generate a new Stellar keypair for the user
-      const userKeypair = StellarSdk.Keypair.random();
-      const userPublicKey = userKeypair.publicKey();
-      const userSecretKey = userKeypair.secret();
-      
-      console.log(`🔑 Generated new Stellar keypair for user`);
-      console.log(`📝 Public Key: ${userPublicKey}`);
-      console.log(`🔐 Secret Key: ${userSecretKey}`);
-      
-      // Load bridge account to get current sequence number
-      let bridgeAccountInfo;
+      // Check if account already exists
       try {
-        bridgeAccountInfo = await this.stellarServerInstance.loadAccount(this.bridgeAccount.publicKey());
+        await this.stellarServerInstance.loadAccount(recipient);
+        console.log(`✅ Stellar account ${recipient} already exists`);
+        return recipient;
       } catch (error) {
-        console.log('🎭 Bridge account not funded, using demo mode for account creation');
-        bridgeAccountInfo = {
-          sequence: '1',
-          balances: [{ asset_type: 'native', balance: '10.0000000' }],
-          account_id: this.bridgeAccount.publicKey()
-        };
+        // Account doesn't exist, create it with funding
+        console.log(`📝 Creating new Stellar account for ${recipient}`);
+        
+        if (!this.bridgeAccount) {
+          throw new Error('Bridge account not initialized');
+        }
+        
+        // Load bridge account to get current sequence number
+        const bridgeAccountInfo = await this.stellarServerInstance.loadAccount(this.bridgeAccount.publicKey());
+        
+        // Create account operation
+        const createAccountOp = StellarSdk.Operation.createAccount({
+          destination: recipient,
+          startingBalance: '1.0' // Fund with 1 XLM
+        });
+        
+        // Build transaction
+        const transaction = new StellarSdk.TransactionBuilder(bridgeAccountInfo, {
+          fee: StellarSdk.BASE_FEE,
+          networkPassphrase: this.stellarNetwork === 'TESTNET' 
+            ? StellarSdk.Networks.TESTNET 
+            : StellarSdk.Networks.PUBLIC
+        })
+        .addOperation(createAccountOp)
+        .setTimeout(30)
+        .build();
+        
+        // Sign transaction
+        transaction.sign(this.bridgeAccount);
+        
+        // Submit transaction
+        console.log(`📤 Submitting account creation transaction...`);
+        const result = await this.stellarServerInstance.submitTransaction(transaction);
+        
+        console.log(`✅ Stellar account created: ${recipient}`);
+        console.log(`📋 Transaction hash: ${result.hash}`);
+        
+        return recipient;
       }
-      
-      // Create account operation
-      const createAccountOp = StellarSdk.Operation.createAccount({
-        destination: userPublicKey,
-        startingBalance: '1.0' // Fund with 1 XLM
-      });
-      
-      // Build transaction
-      const transaction = new StellarSdk.TransactionBuilder(bridgeAccountInfo, {
-        fee: StellarSdk.BASE_FEE,
-        networkPassphrase: this.stellarNetwork === 'TESTNET' 
-          ? StellarSdk.Networks.TESTNET 
-          : StellarSdk.Networks.PUBLIC
-      })
-      .addOperation(createAccountOp)
-      .setTimeout(30)
-      .build();
-      
-      // Sign transaction with bridge account
-      transaction.sign(this.bridgeAccount);
-      
-      // Submit transaction
-      console.log(`📤 Submitting account creation transaction...`);
-      const result = await this.stellarServerInstance.submitTransaction(transaction);
-      
-      console.log(`✅ Stellar account created successfully`);
-      console.log(`📝 User Public Key: ${userPublicKey}`);
-      console.log(`📋 Transaction hash: ${result.hash}`);
-      console.log(`💡 User should save their secret key: ${userSecretKey}`);
-      
-      // Store the user's secret key in localStorage (in production, this should be more secure)
-      localStorage.setItem('userStellarSecretKey', userSecretKey);
-      
-      return userPublicKey;
     } catch (error) {
       console.error('Error creating Stellar account:', error);
       throw new Error(`Failed to create Stellar account: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -632,59 +507,19 @@ class PolygonStellarBridge {
   ): Promise<StellarHTLC> {
     try {
       console.log(`🔐 Creating Stellar HTLC for ${destination}`);
-      console.log(`💰 Bridge account: ${this.bridgeAccount?.publicKey()}`);
-      console.log(`🎯 Destination: ${destination}`);
       
       if (!this.bridgeAccount) {
         throw new Error('Bridge account not initialized');
       }
       
-      // Demo mode if Stellar server is not available
-      if (!this.stellarServerInstance) {
-        console.log('🎭 Running in demo mode - simulating Stellar HTLC creation');
-        
-        const demoHtlcId = `demo_htlc_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-        
-        console.log('✅ Demo Stellar HTLC created successfully:', demoHtlcId);
-        console.log('🎯 Demo: User can claim XLM at destination:', destination);
-        
-        return {
-          id: demoHtlcId,
-          source: this.bridgeAccount.publicKey(),
-          destination,
-          amount,
-          asset,
-          hashlock,
-          timelock,
-          status: 'pending'
-        };
-      }
-      
       // Load bridge account
-      let bridgeAccountInfo;
-      try {
-        bridgeAccountInfo = await this.stellarServerInstance.loadAccount(this.bridgeAccount.publicKey());
-        console.log('✅ Bridge account loaded successfully');
-        console.log('💰 Bridge account balance:', bridgeAccountInfo.balances);
-      } catch (accountError) {
-        console.error('❌ Bridge account not found or not funded:', accountError);
-        console.log('💡 Bridge account needs funding. Send XLM to:', this.bridgeAccount.publicKey());
-        
-        // For demo purposes, create a mock account info
-        console.log('🎭 Using demo mode - creating mock bridge account');
-        bridgeAccountInfo = {
-          sequence: '1',
-          balances: [{ asset_type: 'native', balance: '10.0000000' }],
-          account_id: this.bridgeAccount.publicKey()
-        };
-      }
+      const bridgeAccountInfo = await this.stellarServerInstance.loadAccount(this.bridgeAccount.publicKey());
       
       // Add HTLC conditions using memo hash
       const hashlockBuffer = Buffer.from(hashlock.slice(2), 'hex'); // Remove '0x' prefix
-      const memo = StellarSdk.Memo.hash(hashlockBuffer);
+      const memo = Memo.hash(hashlockBuffer);
       
-      // Create claimable balance with HTLC conditions
-      // The bridge account creates the claimable balance, but the user can claim it
+      // Create claimable balance with HTLC conditions (Enhanced Security)
       const claimableBalanceOp = StellarSdk.Operation.createClaimableBalance({
         asset: asset === 'XLM' ? StellarSdk.Asset.native() : StellarSdk.Asset.native(),
         amount: amount,
@@ -706,16 +541,13 @@ class PolygonStellarBridge {
       .setTimeout(timelock)
       .build();
       
-      // Sign transaction with bridge account
+      // Sign transaction
       transaction.sign(this.bridgeAccount);
       
       // Submit transaction
-      console.log('🚀 Submitting Stellar HTLC transaction...');
       const result = await this.stellarServerInstance.submitTransaction(transaction);
       
       const htlcId = result.hash;
-      console.log('✅ Stellar HTLC created successfully:', htlcId);
-      console.log('🎯 User can claim XLM at destination:', destination);
       
       return {
         id: htlcId,
@@ -978,47 +810,11 @@ class PolygonStellarBridge {
         publicKey: this.bridgeAccount.publicKey(),
         balance: accountInfo.balances,
         sequence: accountInfo.sequence,
-        network: this.stellarNetwork,
-        isFunded: true
+        network: this.stellarNetwork
       };
     } catch (error) {
       console.error('Error getting bridge account info:', error);
-      return {
-        publicKey: this.bridgeAccount.publicKey(),
-        balance: [{ asset_type: 'native', balance: '0.0000000' }],
-        sequence: '0',
-        network: this.stellarNetwork,
-        isFunded: false,
-        error: 'Account not funded - demo mode'
-      };
-    }
-  }
-
-  /**
-   * Test bridge initialization
-   */
-  async testBridgeInitialization(): Promise<boolean> {
-    try {
-      console.log('🧪 Testing bridge initialization...');
-      
-      if (!this.bridgeAccount) {
-        console.error('❌ Bridge account is null');
-        return false;
-      }
-      
-      console.log('✅ Bridge account exists:', this.bridgeAccount.publicKey());
-      
-      if (!this.stellarServerInstance) {
-        console.warn('⚠️ Stellar server instance is null - demo mode');
-        return true; // Still return true for demo mode
-      }
-      
-      console.log('✅ Stellar server instance exists');
-      
-      return true;
-    } catch (error) {
-      console.error('❌ Bridge initialization test failed:', error);
-      return false;
+      throw error;
     }
   }
 

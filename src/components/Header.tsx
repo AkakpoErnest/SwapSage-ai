@@ -10,7 +10,7 @@ import {
 } from './ui/dropdown-menu';
 
 const Header: React.FC = () => {
-  const { walletState, connectEthereum, connectStellar, switchToPolygon, refreshBalance, disconnect, isConnecting } = useWalletContext();
+  const { walletState, connectEthereum, connectStellar, switchToTestnet, disconnect, isConnecting } = useWalletContext();
   const [isConnectingMetaMask, setIsConnectingMetaMask] = useState(false);
   const [isConnectingFreighter, setIsConnectingFreighter] = useState(false);
   
@@ -88,27 +88,6 @@ const Header: React.FC = () => {
     }
     
     return walletState.network;
-  };
-
-  // Format balance for display
-  const formatBalance = (balance?: string) => {
-    if (!balance) return '0.00';
-    
-    const numBalance = parseFloat(balance);
-    if (numBalance === 0) return '0.00';
-    if (numBalance < 0.001) return '< 0.001';
-    if (numBalance < 1) return numBalance.toFixed(4);
-    if (numBalance < 1000) return numBalance.toFixed(2);
-    return numBalance.toFixed(2);
-  };
-
-  // Get token symbol based on network
-  const getTokenSymbol = () => {
-    if (walletState.network?.includes('Polygon')) return 'MATIC';
-    if (walletState.network?.includes('Ethereum')) return 'ETH';
-    if (walletState.network?.includes('Sepolia')) return 'SEP';
-    if (walletState.network?.includes('Stellar')) return 'XLM';
-    return 'ETH';
   };
 
   return (
@@ -331,55 +310,32 @@ const Header: React.FC = () => {
                   <span className="text-muted-foreground">
                     {getNetworkDisplayName()}
                   </span>
-                  {walletState.network?.includes('Ethereum Mainnet') && (
-                    <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                      Switch to Polygon
+                  {!isTestnet(walletState.chainId) && walletState.network?.includes('Ethereum') && (
+                    <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                      Switch to Testnet
                     </span>
                   )}
-
                 </div>
                 <div className="font-mono text-xs">
                   {walletState.address?.slice(0, 6)}...{walletState.address?.slice(-4)}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="text-xs text-green-400 font-medium">
-                    {formatBalance(walletState.balance)} {getTokenSymbol()}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={refreshBalance}
-                    className="h-4 w-4 p-0 text-green-400 hover:text-green-300"
-                    title="Refresh balance"
-                  >
-                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </Button>
-                </div>
-                {walletState.network?.includes('Ethereum Mainnet') && (
-                  <div className="text-xs text-blue-600 mt-1">
-                    ⚠️ Switch to Polygon for deployed contracts
-                  </div>
-                )}
-                {walletState.network?.includes('Polygon Mainnet') && (
-                  <div className="text-xs text-green-600 mt-1">
-                    ✅ Connected to deployed contracts
+                {!isTestnet(walletState.chainId) && walletState.network?.includes('Ethereum') && (
+                  <div className="text-xs text-yellow-600 mt-1">
+                    ⚠️ This app requires testnet for demo
                   </div>
                 )}
               </div>
               <div className="flex space-x-2">
-                {walletState.network?.includes('Ethereum Mainnet') && (
+                {!isTestnet(walletState.chainId) && walletState.network?.includes('Ethereum') && (
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={switchToPolygon}
-                    className="text-xs bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100"
+                    onClick={switchToTestnet}
+                    className="text-xs bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100"
                   >
-                    Switch to Polygon
+                    Switch to Sepolia
                   </Button>
                 )}
-
                 <Button variant="outline" size="sm" onClick={disconnect}>
                   Disconnect
                 </Button>

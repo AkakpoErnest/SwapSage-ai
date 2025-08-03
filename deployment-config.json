@@ -113,10 +113,10 @@
     "etherscanApiKey": "YOUR_ETHERSCAN_API_KEY"
   },
   "frontend": {
-    "defaultNetwork": "polygon",
+    "defaultNetwork": "sepolia",
     "supportedNetworks": [
-      "polygon",
-      "sepolia"
+      "sepolia",
+      "polygon"
     ],
     "autoConnect": true,
     "pollingInterval": 15000
