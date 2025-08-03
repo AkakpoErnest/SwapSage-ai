@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 
 const EnhancedSwapInterface: React.FC = () => {
-  const { walletState } = useWalletContext();
+  const { walletState, refreshBalance } = useWalletContext();
   
   // Price feed state
   const [currentPrice, setCurrentPrice] = useState<string>('0.80');
@@ -40,6 +40,7 @@ const EnhancedSwapInterface: React.FC = () => {
   // Swap quote state
   const [swapAmount, setSwapAmount] = useState<string>('1');
   const [swapToken, setSwapToken] = useState<string>('MATIC');
+  const [swapToToken, setSwapToToken] = useState<string>('USDC');
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
   const [isGettingQuote, setIsGettingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
@@ -112,24 +113,44 @@ const EnhancedSwapInterface: React.FC = () => {
     setQuoteError(null);
     
     try {
+      // Convert amount to wei (18 decimals)
+      const amountInWei = (parseFloat(swapAmount) * Math.pow(10, availableTokens[swapToken].decimals)).toString();
+      
       // Always try to get real quote from 1inch API first
       const quote = await oneInchAPI.getSwapQuote(
         137, // Polygon chain ID
         availableTokens[swapToken].address,
-        availableTokens['USDC'].address,
-        swapAmount,
+        availableTokens[swapToToken].address,
+        amountInWei,
         walletState.address || '0x0000000000000000000000000000000000000000',
         1 // 1% slippage
       );
       setSwapQuote(quote);
+      console.log('✅ Real 1inch quote received:', quote);
     } catch (apiError) {
+      console.warn('⚠️ 1inch API error, using fallback:', apiError);
       setQuoteError('Real-time quotes temporarily unavailable. Using realistic market data instead.');
       
-      // Provide fallback quote with realistic data
-      const estimatedOutput = (parseFloat(swapAmount) * 0.1957).toFixed(4); // Realistic WMATIC/USDC rate
+      // Provide fallback quote with realistic data based on token
+      let estimatedOutput: string;
+      let toToken = availableTokens['USDC'];
+      
+      if (swapToken === 'MATIC') {
+        estimatedOutput = (parseFloat(swapAmount) * 0.1957).toFixed(4); // WMATIC/USDC rate
+      } else if (swapToken === 'USDC') {
+        estimatedOutput = (parseFloat(swapAmount) * 5.11).toFixed(4); // USDC/WMATIC rate
+        toToken = availableTokens['MATIC'];
+      } else if (swapToken === 'DAI') {
+        estimatedOutput = (parseFloat(swapAmount) * 0.1957).toFixed(4); // DAI/USDC rate
+      } else if (swapToken === 'USDT') {
+        estimatedOutput = (parseFloat(swapAmount) * 1.0).toFixed(4); // USDT/USDC rate
+      } else {
+        estimatedOutput = (parseFloat(swapAmount) * 0.1957).toFixed(4); // Default rate
+      }
+      
       const fallbackQuote: SwapQuote = {
         fromToken: availableTokens[swapToken],
-        toToken: availableTokens['USDC'],
+        toToken: toToken,
         fromTokenAmount: swapAmount,
         toTokenAmount: estimatedOutput,
         protocols: ['1inch Fusion', 'Uniswap V3', 'SushiSwap'],
@@ -310,6 +331,48 @@ const EnhancedSwapInterface: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Wallet Balance Section */}
+      {walletState.isConnected && (
+        <Card className="bg-gradient-card border-neon-green/20">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="h-5 w-5 text-neon-green" />
+                <CardTitle className="text-lg">Wallet Balance</CardTitle>
+                <div className="w-2 h-2 bg-neon-green rounded-full"></div>
+              </div>
+              <Badge variant="outline" className="bg-space-gray/50 border-neon-green/20">
+                {walletState.network}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Available Balance</div>
+                <div className="text-2xl font-bold text-neon-green">
+                  {parseFloat(walletState.balance || '0').toFixed(4)} {walletState.network?.includes('Polygon') ? 'MATIC' : walletState.network?.includes('Ethereum') ? 'ETH' : 'XLM'}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Address: {walletState.address?.slice(0, 6)}...{walletState.address?.slice(-4)}
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshBalance}
+                  className="bg-space-gray border-neon-green/20 hover:bg-neon-green/10"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Live Polygon Price Feeds Section */}
       <Card className="bg-gradient-card border-neon-cyan/20">
         <CardHeader className="pb-4">
@@ -382,7 +445,7 @@ const EnhancedSwapInterface: React.FC = () => {
             />
             <Select value={swapToken} onValueChange={setSwapToken}>
               <SelectTrigger className="w-32 bg-space-gray border-neon-cyan/20">
-                <SelectValue placeholder="Token" />
+                <SelectValue placeholder="From" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(availableTokens).map(([symbol, token]) => (
@@ -393,6 +456,44 @@ const EnhancedSwapInterface: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex-1 text-center text-sm text-muted-foreground">
+              ↓ Swap to
+            </div>
+            <Select value={swapToToken} onValueChange={setSwapToToken}>
+              <SelectTrigger className="w-32 bg-space-gray border-neon-cyan/20">
+                <SelectValue placeholder="To" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(availableTokens).map(([symbol, token]) => (
+                  <SelectItem key={symbol} value={symbol}>
+                    {token.symbol}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* Balance Check */}
+          {walletState.isConnected && swapAmount && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                Available: {parseFloat(walletState.balance || '0').toFixed(4)} {walletState.network?.includes('Polygon') ? 'MATIC' : 'ETH'}
+              </span>
+              {parseFloat(swapAmount) > parseFloat(walletState.balance || '0') ? (
+                <span className="text-red-400 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Insufficient balance
+                </span>
+              ) : (
+                <span className="text-green-400 flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  Sufficient balance
+                </span>
+              )}
+            </div>
+          )}
           
           {quoteError && (
             <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
@@ -405,7 +506,7 @@ const EnhancedSwapInterface: React.FC = () => {
           
           <Button 
             onClick={getSwapQuote}
-            disabled={isGettingQuote || !swapAmount || !swapToken}
+            disabled={isGettingQuote || !swapAmount || !swapToken || !swapToToken || swapToken === swapToToken || (walletState.isConnected && parseFloat(swapAmount) > parseFloat(walletState.balance || '0'))}
             className="w-full bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
           >
             {isGettingQuote ? (

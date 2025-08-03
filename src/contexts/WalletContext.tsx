@@ -21,7 +21,9 @@ interface WalletContextType {
   error: WalletError | null;
   connectEthereum: () => Promise<void>;
   connectStellar: () => Promise<void>;
+  switchToPolygon: () => Promise<void>;
   switchToTestnet: () => Promise<void>;
+  refreshBalance: () => Promise<void>;
   disconnect: () => void;
 }
 
@@ -143,7 +145,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } catch (networkError: any) {
         console.error('❌ Network detection failed:', networkError);
         // Use default network if detection fails
-        network = { chainId: BigInt(1) }; // Default to mainnet
+        network = { chainId: BigInt(137) }; // Default to Polygon mainnet
       }
 
       // Get balance with error handling
@@ -202,6 +204,56 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.log('🏁 Connection attempt finished');
     }
   }, []);
+
+  // Switch to Polygon mainnet
+  const switchToPolygon = useCallback(async () => {
+    if (typeof window === 'undefined' || !window.ethereum) {
+      alert('MetaMask is not installed!');
+      return;
+    }
+
+    try {
+      // Try to switch to Polygon first
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x89' }] // Polygon chainId in hex
+      });
+      
+      // Refresh wallet state after network switch
+      if (walletState.isConnected) {
+        await connectEthereum();
+      }
+    } catch (switchError: any) {
+      // If Polygon is not added, add it
+      if (switchError.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x89',
+              chainName: 'Polygon Mainnet',
+              nativeCurrency: {
+                name: 'MATIC',
+                symbol: 'MATIC',
+                decimals: 18
+              },
+              rpcUrls: ['https://polygon-rpc.com/'],
+              blockExplorerUrls: ['https://polygonscan.com/']
+            }]
+          });
+          
+          // Refresh wallet state after adding network
+          if (walletState.isConnected) {
+            await connectEthereum();
+          }
+        } catch (addError: any) {
+          alert(`Failed to add Polygon mainnet: ${addError.message}`);
+        }
+      } else {
+        alert(`Failed to switch to Polygon mainnet: ${switchError.message}`);
+      }
+    }
+  }, [walletState.isConnected, connectEthereum]);
 
   // Switch to testnet networks
   const switchToTestnet = useCallback(async () => {
@@ -308,6 +360,33 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
+  // Refresh wallet balance
+  const refreshBalance = useCallback(async () => {
+    if (!walletState.isConnected || !walletState.address || !walletState.provider) {
+      console.log('❌ Cannot refresh balance: wallet not connected');
+      return;
+    }
+
+    try {
+      console.log('🔄 Refreshing wallet balance...');
+      const provider = walletState.provider as ethers.BrowserProvider;
+      const balance = await provider.getBalance(walletState.address);
+      
+      setWalletState(prev => ({
+        ...prev,
+        balance: ethers.formatEther(balance)
+      }));
+      
+      console.log('✅ Balance refreshed:', ethers.formatEther(balance));
+    } catch (error: any) {
+      console.error('❌ Failed to refresh balance:', error);
+      setError({
+        message: 'Failed to refresh balance',
+        code: 'BALANCE_REFRESH_FAILED'
+      });
+    }
+  }, [walletState.isConnected, walletState.address, walletState.provider]);
+
   // Disconnect wallet
   const disconnect = useCallback(() => {
     console.log('🔌 Disconnecting wallet...');
@@ -353,7 +432,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     error,
     connectEthereum,
     connectStellar,
+    switchToPolygon,
     switchToTestnet,
+    refreshBalance,
     disconnect
   };
 
