@@ -44,7 +44,7 @@ export interface StellarAccount {
 
 class CrossChainBridge {
   private ethereumProvider?: ethers.BrowserProvider;
-  private stellarServer: string = 'https://horizon-testnet.stellar.org'; // Testnet for now
+  private stellarServer: string = 'https://horizon.stellar.org'; // Mainnet
   private swaps: Map<string, SwapStatus> = new Map();
 
   constructor() {

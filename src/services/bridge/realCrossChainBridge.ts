@@ -42,14 +42,14 @@ class RealCrossChainBridge {
   // Contract addresses from deployment
   private contractAddresses = {
     11155111: { // Sepolia
-      htlc: "0xd7c66D8B635152709fbe14E72eF91C9417391f37",
-      oracle: "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1",
-      executor: "0x9209383Dd4fce1bF82aA26c6476Bbf795d1DfF48"
+      htlc: "0xd7c66D8B635152709fbe14E72eF91C9417391f37", // Sepolia HTLC
+      oracle: "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1", // Sepolia Oracle
+      executor: "0x9209383Dd4fce1bF82aA26c6476Bbf795d1DfF48" // Sepolia Executor
     },
-    137: { // Polygon
-      htlc: "0x0000000000000000000000000000000000000000", // Deploy to Polygon
-      oracle: "0x0000000000000000000000000000000000000000",
-      executor: "0x0000000000000000000000000000000000000000"
+    137: { // Polygon Mainnet
+      htlc: "0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb", // User deployed HTLC
+      oracle: "0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e", // User deployed Oracle
+      executor: "0x933672776E1e04C2C73bED443c2dCAB566bE0CC5" // User deployed Executor
     }
   };
 

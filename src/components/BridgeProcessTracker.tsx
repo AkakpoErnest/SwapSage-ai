@@ -104,7 +104,7 @@ const BridgeProcessTracker = ({ activeProcesses, onProcessUpdate }: BridgeProces
     } else if (chain === 'ethereum') {
       url = `https://etherscan.io/tx/${txHash}`;
     } else if (chain === 'stellar') {
-      url = `https://stellar.expert/explorer/testnet/tx/${txHash}`;
+              url = `https://stellar.expert/explorer/public/tx/${txHash}`;
     }
     
     if (url) {

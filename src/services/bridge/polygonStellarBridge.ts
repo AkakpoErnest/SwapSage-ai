@@ -60,9 +60,12 @@ class PolygonStellarBridge {
   // Bridge account configuration
   private readonly BRIDGE_ACCOUNT_SEED = 'SBRIDGEACCOUNTSEEDKEYFORSTELLAROPERATIONS123456789'; // Demo seed
   
-  // Contract addresses - Mainnet
-  private polygonHTLC = "0xd7c66D8B635152709fbe14E72eF91C9417391f37"; // Polygon mainnet HTLC
-  private polygonOracle = "0xc6e0eF2453f08C0fbeC4b6a038d23f4D3A00E1B1"; // Polygon mainnet Oracle
+  // Contract addresses - Polygon Mainnet (Deployed by user)
+  private polygonHTLC = "0x0c06d83455d4033aC29aA0b8Fab00A10Bb0c85Bb"; // User deployed HTLC
+  private polygonOracle = "0x80e52B79961fEeB3096777AE0478B225A7Ae1c7e"; // User deployed Oracle
+  private polygonExecutor = "0x933672776E1e04C2C73bED443c2dCAB566bE0CC5"; // User deployed Executor
+  private polygonSimpleHTLC = "0x431D2d3E65c7511dA9876a2d43043f04A7eDBb24"; // User deployed Simple HTLC
+  private polygonMockToken = "0x4e329608BbaeA87656fBDC5EFb755d079C5E4254"; // User deployed Mock Token
 
   private htlcABI = [
     "function initiateSwap(address recipient, uint256 amount, bytes32 hashlock, uint256 timelock) external returns (string memory swapId)",

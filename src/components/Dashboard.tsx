@@ -281,7 +281,7 @@ const Dashboard = ({ walletAddress, isConnected }: DashboardProps) => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Bridge Network</span>
-              <span className="text-sm">⭐ Stellar Testnet</span>
+                              <span className="text-sm">⭐ Stellar Mainnet</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Connection</span>

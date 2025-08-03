@@ -1,959 +1,727 @@
-import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ArrowRight, Network, Coins, Clock, AlertCircle, CheckCircle, Wallet } from "lucide-react";
-import { useWallet } from "@/hooks/useWallet";
-import { polygonStellarBridge } from "@/services/bridge/polygonStellarBridge";
-import { useToast } from "@/hooks/use-toast";
-import { ethers } from "ethers";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import React, { useState, useEffect } from 'react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Badge } from './ui/badge';
+import { Progress } from './ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { useWalletContext } from '../contexts/WalletContext';
+import { crossChainBridge, CrossChainSwapRequest, SwapStatus } from '../services/bridge/crossChainBridge';
+import { 
+  ArrowUpDown,
+  Shield,
+  Clock,
+  CheckCircle,
+  X,
+  AlertCircle,
+  RefreshCw,
+  Eye,
+  Key,
+  Unlock,
+  RotateCcw,
+  Copy,
+  ExternalLink,
+  Timer,
+  Lock,
+  Zap,
+  Coins,
+  Network,
+  Activity,
+  TrendingUp,
+  BarChart3
+} from 'lucide-react';
 
-interface Chain {
-  id: number;
-  name: string;
-  symbol: string;
-  icon: string;
-  color: string;
-  status: 'live' | 'testnet' | 'coming-soon';
+interface BridgeStats {
+  totalSwaps: number;
+  activeSwaps: number;
+  completedSwaps: number;
+  failedSwaps: number;
+  totalVolume: string;
+  successRate: number;
 }
 
-interface Token {
-  symbol: string;
-  name: string;
-  address: string;
-  decimals: number;
-  icon: string;
-  chainId: number;
-}
+const BridgeInterface: React.FC = () => {
+  const { walletState } = useWalletContext();
+  
+  // Bridge state
+  const [fromChain, setFromChain] = useState<'polygon' | 'stellar'>('polygon');
+  const [toChain, setToChain] = useState<'polygon' | 'stellar'>('stellar');
+  const [fromToken, setFromToken] = useState<string>('MATIC');
+  const [toToken, setToToken] = useState<string>('XLM');
+  const [amount, setAmount] = useState<string>('1');
+  const [isInitiating, setIsInitiating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-interface BridgeQuote {
-  fromAmount: string;
-  toAmount: string;
-  fee: string;
-  gasFee: string;
-  totalFee: string;
-  estimatedTime: number;
-  minAmount: string;
-  maxAmount: string;
-  confidence: number;
-}
+  // HTLC Security state
+  const [selectedSwap, setSelectedSwap] = useState<SwapStatus | null>(null);
+  const [secretInput, setSecretInput] = useState<string>('');
+  const [isRevealingSecret, setIsRevealingSecret] = useState(false);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [htlcDetails, setHtlcDetails] = useState<any>(null);
+  const [showHtlcModal, setShowHtlcModal] = useState(false);
 
-const BridgeInterface = () => {
-  const [fromChain, setFromChain] = useState<Chain | null>(null);
-  const [toChain, setToChain] = useState<Chain | null>(null);
-  const [fromToken, setFromToken] = useState<Token | null>(null);
-  const [toToken, setToToken] = useState<Token | null>(null);
-  const [amount, setAmount] = useState("");
-  const [recipient, setRecipient] = useState("");
-  const [bridgeQuote, setBridgeQuote] = useState<BridgeQuote | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [supportedChains, setSupportedChains] = useState<Chain[]>([]);
-  const [supportedTokens, setSupportedTokens] = useState<Token[]>([]);
-  const [bridgeStatus, setBridgeStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
-  const [autoSelectWallet, setAutoSelectWallet] = useState(true);
-  const [generatedWallets, setGeneratedWallets] = useState<Record<number, string>>({});
-  const [activeBridgeProcesses, setActiveBridgeProcesses] = useState<any[]>([]);
+  // Transaction state
+  const [activeSwaps, setActiveSwaps] = useState<SwapStatus[]>([]);
+  const [completedSwaps, setCompletedSwaps] = useState<SwapStatus[]>([]);
+  const [stats, setStats] = useState<BridgeStats>({
+    totalSwaps: 0,
+    activeSwaps: 0,
+    completedSwaps: 0,
+    failedSwaps: 0,
+    totalVolume: '0',
+    successRate: 0
+  });
 
-  const { walletState } = useWallet();
-  const { toast } = useToast();
+  // Available tokens
+  const availableTokens = {
+    polygon: {
+      MATIC: { symbol: 'MATIC', name: 'Polygon', decimals: 18 },
+      USDC: { symbol: 'USDC', name: 'USD Coin', decimals: 6 },
+      DAI: { symbol: 'DAI', name: 'Dai Stablecoin', decimals: 18 },
+      USDT: { symbol: 'USDT', name: 'Tether USD', decimals: 6 },
+      ETH: { symbol: 'WETH', name: 'Wrapped Ethereum', decimals: 18 }
+    },
+    stellar: {
+      XLM: { symbol: 'XLM', name: 'Stellar Lumens', decimals: 7 },
+      USDC: { symbol: 'USDC', name: 'USD Coin', decimals: 7 },
+      USDT: { symbol: 'USDT', name: 'Tether USD', decimals: 7 }
+    }
+  };
 
-  // Enhanced chain selection with error handling
-  const handleChainChange = (chain: Chain | null, type: 'from' | 'to') => {
-    try {
-      if (type === 'from') {
-        setFromChain(chain);
-        // Reset tokens when chain changes
-        setFromToken(null);
-        setToToken(null);
-      } else {
-        setToChain(chain);
-        setToToken(null);
+  useEffect(() => {
+    loadSwaps();
+    calculateStats();
+  }, [walletState.address]);
+
+  const loadSwaps = async () => {
+    if (walletState.address) {
+      try {
+        const swaps = crossChainBridge.getSwapsForAddress(walletState.address);
+        const active = swaps.filter(s => s.status === 'pending' || s.status === 'initiated');
+        const completed = swaps.filter(s => s.status === 'completed' || s.status === 'refunded');
+        
+        setActiveSwaps(active);
+        setCompletedSwaps(completed);
+      } catch (error) {
+        console.error('Failed to load swaps:', error);
       }
-      
-      // Clear bridge quote when chains change
-      setBridgeQuote(null);
-    } catch (error) {
-      console.error('Chain selection error:', error);
-      toast({
-        title: "Selection Error",
-        description: "Failed to select chain. Please try again.",
-        variant: "destructive",
-      });
     }
   };
 
-  // Enhanced token selection with validation
-  const handleTokenChange = (token: Token | null, type: 'from' | 'to') => {
-    try {
-      if (type === 'from') {
-        setFromToken(token);
-        // Reset to token if it's the same as the new from token
-        if (toToken && toToken.address === token?.address) {
-          setToToken(null);
-        }
-      } else {
-        setToToken(token);
-      }
-      
-      // Clear bridge quote when tokens change
-      setBridgeQuote(null);
-    } catch (error) {
-      console.error('Token selection error:', error);
-      toast({
-        title: "Selection Error",
-        description: "Failed to select token. Please try again.",
-        variant: "destructive",
-      });
-    }
+  const calculateStats = () => {
+    const allSwaps = [...activeSwaps, ...completedSwaps];
+    const total = allSwaps.length;
+    const active = activeSwaps.length;
+    const completed = completedSwaps.filter(s => s.status === 'completed').length;
+    const failed = completedSwaps.filter(s => s.status === 'failed').length;
+    
+    const totalVolume = allSwaps
+      .filter(s => s.status === 'completed')
+      .reduce((sum, s) => sum + parseFloat(s.amount), 0)
+      .toFixed(2);
+    
+    const successRate = total > 0 ? (completed / total) * 100 : 0;
+
+    setStats({
+      totalSwaps: total,
+      activeSwaps: active,
+      completedSwaps: completed,
+      failedSwaps: failed,
+      totalVolume,
+      successRate
+    });
   };
 
-  // Available chains
-  const chains: Chain[] = [
-    { id: 11155111, name: "Sepolia", symbol: "ETH", icon: "🔷", color: "blue", status: "testnet" },
-    { id: 1, name: "Ethereum", symbol: "ETH", icon: "🔷", color: "blue", status: "live" },
-    { id: 137, name: "Polygon", symbol: "MATIC", icon: "🟣", color: "purple", status: "live" },
-    { id: 42161, name: "Arbitrum", symbol: "ARB", icon: "🔵", color: "cyan", status: "live" },
-    { id: 10, name: "Optimism", symbol: "OP", icon: "🔴", color: "red", status: "live" },
-    { id: 56, name: "BSC", symbol: "BNB", icon: "🟡", color: "yellow", status: "live" },
-    { id: 100, name: "Stellar", symbol: "XLM", icon: "⭐", color: "white", status: "testnet" },
-  ];
-
-  // Available tokens (updated for Sepolia testnet)
-  const tokens: Token[] = [
-    { symbol: "ETH", name: "Ethereum", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🔷", chainId: 11155111 },
-    { symbol: "mUSDC", name: "Mock USDC", address: import.meta.env.VITE_MOCK_TOKEN_ADDRESS || "0xE560De00F664dE3C0B3815dd1AF4b6DF64123563", decimals: 6, icon: "💵", chainId: 11155111 },
-    { symbol: "USDC", name: "USD Coin", address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", decimals: 6, icon: "💵", chainId: 11155111 },
-    { symbol: "DAI", name: "Dai Stablecoin", address: "0x68194a729C2450ad26072b3D33ADaCbcef39D574", decimals: 18, icon: "🟢", chainId: 11155111 },
-    { symbol: "MATIC", name: "Polygon", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🟣", chainId: 137 },
-    { symbol: "USDC", name: "USD Coin", address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", decimals: 6, icon: "💵", chainId: 137 },
-    { symbol: "ARB", name: "Arbitrum", address: "0x0000000000000000000000000000000000000000", decimals: 18, icon: "🔵", chainId: 42161 },
-    { symbol: "XLM", name: "Stellar Lumens", address: "native", decimals: 7, icon: "⭐", chainId: 100 },
-  ];
-
-  useEffect(() => {
-    initializeBridge();
-  }, []);
-
-  useEffect(() => {
-    if (fromChain && toChain && fromToken && amount) {
-      calculateBridgeQuote();
-    }
-  }, [fromChain, toChain, fromToken, amount]);
-
-  // Auto-fill recipient with wallet address when wallet connects
-  useEffect(() => {
-    if (walletState.isConnected && walletState.address && !recipient) {
-      setRecipient(walletState.address);
-    }
-  }, [walletState.isConnected, walletState.address, recipient]);
-
-  // Initialize Polygon-Stellar bridge
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.ethereum) {
-      const initializePolygonStellarBridge = async () => {
-        try {
-          await polygonStellarBridge.initialize("https://polygon-rpc.com", "TESTNET");
-          console.log("✅ Polygon-Stellar bridge initialized");
-        } catch (error) {
-          console.warn('Polygon-Stellar bridge initialization failed, using demo mode:', error);
-          // Bridge will work in demo mode
-        }
-      };
-      initializePolygonStellarBridge();
-    }
-  }, []);
-
-  const initializeBridge = async () => {
-    try {
-      setIsLoading(true);
-      setSupportedChains(chains);
-      
-      if (walletState.isConnected && walletState.chainId) {
-        const currentChain = chains.find(c => c.id === walletState.chainId);
-        if (currentChain) {
-          setFromChain(currentChain);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to initialize bridge:', error);
-      toast({
-        title: "Bridge Error",
-        description: "Failed to initialize bridge service",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const calculateBridgeQuote = async () => {
-    if (!fromChain || !toChain || !fromToken || !amount) return;
-
-    // Check if same token is selected
-    if (fromToken.address === toToken?.address) {
-      toast({
-        title: "Selection Error",
-        description: "Please select different tokens for cross-chain bridge",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsCalculating(true);
-      
-      const quote = await polygonStellarBridge.getBridgeQuote({
-        fromChain: fromChain.name.toLowerCase() as 'polygon' | 'stellar',
-        toChain: toChain.name.toLowerCase() as 'polygon' | 'stellar',
-        fromToken: fromToken.address,
-        toToken: toToken?.address || "0x0000000000000000000000000000000000000000",
-        fromAmount: amount,
-        recipient: recipient || walletState.address || "",
-        use1inchFusion: fromChain.name.toLowerCase() === 'polygon'
-      });
-      
-      setBridgeQuote(quote);
-    } catch (error) {
-      console.error('Failed to calculate bridge quote:', error);
-      setBridgeQuote(null);
-      toast({
-        title: "Quote Error",
-        description: "Failed to get bridge quote from on-chain oracle",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCalculating(false);
-    }
-  };
-
-  const addBridgeProcess = (processData: any) => {
-    const process = {
-      id: `bridge-${Date.now()}`,
-      fromChain: fromChain?.name || '',
-      toChain: toChain?.name || '',
-      fromToken: fromToken?.symbol || '',
-      toToken: toToken?.symbol || '',
-      fromAmount: amount,
-      toAmount: bridgeQuote?.toAmount || "0",
-      status: 'initiating' as const,
-      steps: [
-        {
-          id: 'initiate',
-          name: 'Initiating Bridge',
-          status: 'processing' as const,
-          description: 'Creating bridge transaction...',
-          timestamp: Date.now()
-        },
-        {
-          id: 'confirm',
-          name: 'Confirming Transaction',
-          status: 'pending' as const,
-          description: 'Waiting for blockchain confirmation...'
-        },
-        {
-          id: 'process',
-          name: 'Processing Bridge',
-          status: 'pending' as const,
-          description: 'Executing cross-chain transfer...'
-        },
-        {
-          id: 'complete',
-          name: 'Bridge Complete',
-          status: 'pending' as const,
-          description: 'Transfer completed successfully'
-        }
-      ],
-      startTime: Date.now(),
-      estimatedTime: 300000, // 5 minutes
-      recipient: recipient
-    };
-
-    setActiveBridgeProcesses(prev => [...prev, process]);
-    return process.id;
-  };
-
-  const updateBridgeProcess = (processId: string, updates: any) => {
-    setActiveBridgeProcesses(prev => 
-      prev.map(process => 
-        process.id === processId 
-          ? { ...process, ...updates }
-          : process
-      )
-    );
-  };
-
-  const handleExecuteBridge = async () => {
-    // Check each required field individually and provide specific error messages
-    if (!fromChain) {
-      toast({
-        title: "Bridge Error",
-        description: "Please select a source chain",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!toChain) {
-      toast({
-        title: "Bridge Error",
-        description: "Please select a destination chain",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!fromToken) {
-      toast({
-        title: "Bridge Error",
-        description: "Please select a source token",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!toToken) {
-      toast({
-        title: "Bridge Error",
-        description: "Please select a destination token",
-        variant: "destructive",
-      });
+  const initiateSwap = async () => {
+    if (!walletState.isConnected) {
+      setError('Please connect your wallet first');
       return;
     }
 
     if (!amount || parseFloat(amount) <= 0) {
-      toast({
-        title: "Bridge Error",
-        description: "Please enter a valid amount",
-        variant: "destructive",
-      });
+      setError('Please enter a valid amount');
       return;
     }
 
-          // Use recipient if provided, otherwise use wallet address
-      let finalRecipient = recipient || walletState.address;
-      
-      // Create bridge process tracker
-      const processId = addBridgeProcess({});
-      
-      // For cross-chain swaps, validate the recipient address format
-    if (fromChain?.name.toLowerCase() === 'polygon' && toChain?.name.toLowerCase() === 'stellar') {
-      // For Polygon to Stellar, recipient should be a Stellar address
-      if (!finalRecipient) {
-        toast({
-          title: "Bridge Error",
-          description: "Please provide a Stellar recipient address for cross-chain swaps",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Validate Stellar address format
-      if (!finalRecipient.startsWith('G') || finalRecipient.length !== 56) {
-        toast({
-          title: "Bridge Error",
-          description: "Invalid Stellar address. Stellar addresses should start with 'G' and be 56 characters long.",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else if (fromChain?.name.toLowerCase() === 'stellar' && toChain?.name.toLowerCase() === 'polygon') {
-      // For Stellar to Polygon, recipient should be an Ethereum address
-      if (!finalRecipient) {
-        toast({
-          title: "Bridge Error",
-          description: "Please provide an Ethereum/Polygon recipient address for cross-chain swaps",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Validate Ethereum address format
-      if (!finalRecipient.startsWith('0x') || finalRecipient.length !== 42) {
-        toast({
-          title: "Bridge Error",
-          description: "Invalid Ethereum address. Ethereum addresses should start with '0x' and be 42 characters long.",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else {
-      // Same chain swap
-      if (!finalRecipient) {
-        toast({
-          title: "Bridge Error",
-          description: "Please provide a recipient address or connect your wallet",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    if (!bridgeQuote) {
-      toast({
-        title: "Bridge Error",
-        description: "Please wait for bridge quote calculation",
-        variant: "destructive",
-      });
-      return;
-    }
+    setIsInitiating(true);
+    setError(null);
 
     try {
-      setBridgeStatus('processing');
-      
-      // Check wallet connection
-      if (!walletState.isConnected) {
-        throw new Error('Please connect your wallet first');
-      }
-      
-      // Check if we're on the correct network
-      if (fromChain?.name.toLowerCase() === 'polygon' && walletState.chainId !== 137) {
-        throw new Error('Please switch to Polygon network in your wallet');
-      }
-      
-      // Execute Polygon-Stellar cross-chain swap
-      let result;
-      if (fromChain.name.toLowerCase() === 'polygon' && toChain.name.toLowerCase() === 'stellar') {
-        result = await polygonStellarBridge.executePolygonToStellarSwap({
-          fromChain: 'polygon',
-          toChain: 'stellar',
-          fromToken: fromToken.address,
-          toToken: toToken.address,
-          fromAmount: amount,
-          recipient: finalRecipient,
-          use1inchFusion: true
-        });
-      } else if (fromChain.name.toLowerCase() === 'stellar' && toChain.name.toLowerCase() === 'polygon') {
-        result = await polygonStellarBridge.executeStellarToPolygonSwap({
-          fromChain: 'stellar',
-          toChain: 'polygon',
-          fromToken: fromToken.address,
-          toToken: toToken.address,
-          fromAmount: amount,
-          recipient: finalRecipient,
-          use1inchFusion: true
-        });
+      const swapRequest: CrossChainSwapRequest = {
+        fromChain,
+        toChain,
+        fromToken,
+        toToken,
+        amount,
+        fromAddress: walletState.address || '',
+        toAddress: walletState.address || '',
+        slippage: 1
+      };
+
+      let result: SwapStatus;
+      if (fromChain === 'polygon' && toChain === 'stellar') {
+        result = await crossChainBridge.initiatePolygonToStellarSwap(swapRequest);
       } else {
-        throw new Error('Only Polygon ↔ Stellar swaps are supported');
-      }
-      
-      // Store generated wallet info if auto-selected
-      if (autoSelectWallet && result.swapId) {
-        setGeneratedWallets(prev => ({
-          ...prev,
-          [fromChain.id]: `Generated for swap ${result.swapId.slice(0, 8)}...`
-        }));
+        result = await crossChainBridge.initiateStellarToPolygonSwap(swapRequest);
       }
 
-      // Update bridge process with success
-      if (result && result.swapId) {
-        // Update step 1: Initiating
-        updateBridgeProcess(processId, {
-          status: 'processing',
-          'steps.0.status': 'completed',
-          'steps.1.status': 'processing'
-        });
-
-        // Simulate processing steps
-        setTimeout(() => {
-          updateBridgeProcess(processId, {
-            'steps.1.status': 'completed',
-            'steps.2.status': 'processing'
-          });
-
-          setTimeout(() => {
-            updateBridgeProcess(processId, {
-              'steps.2.status': 'completed',
-              'steps.3.status': 'processing'
-            });
-
-            setTimeout(() => {
-              updateBridgeProcess(processId, {
-                status: 'completed',
-                'steps.3.status': 'completed'
-              });
-            }, 2000);
-          }, 3000);
-        }, 2000);
-      }
-      
-      toast({
-        title: "🎯 On-Chain Bridge Initiated!",
-        description: `Real HTLC swap created: ${result.swapId.slice(0, 8)}...`,
-      });
-
-      setBridgeStatus('completed');
-      
-      // Reset form
-      setAmount("");
-      setRecipient("");
-      setBridgeQuote(null);
+      setActiveSwaps(prev => [...prev, result]);
+      calculateStats();
       
     } catch (error) {
-      console.error('Real bridge execution failed:', error);
-      setBridgeStatus('failed');
-      toast({
-        title: "❌ On-Chain Bridge Failed",
-        description: error instanceof Error ? error.message : "Real bridge execution failed",
-        variant: "destructive",
-      });
+      setError(error instanceof Error ? error.message : 'Failed to initiate swap');
+    } finally {
+      setIsInitiating(false);
     }
   };
 
-  const getFilteredTokens = (chainId: number) => {
-    return tokens.filter(token => token.chainId === chainId);
+  // HTLC Security functions
+  const revealSecret = async (swap: SwapStatus) => {
+    if (!secretInput.trim()) {
+      setError('Please enter the secret to reveal');
+      return;
+    }
+
+    setIsRevealingSecret(true);
+    setError(null);
+
+    try {
+      await crossChainBridge.completeSwap(swap.id, secretInput, fromChain);
+      
+      setActiveSwaps(prev => prev.filter(s => s.id !== swap.id));
+      setCompletedSwaps(prev => [...prev, { ...swap, status: 'completed' }]);
+      calculateStats();
+      
+      setSecretInput('');
+      setSelectedSwap(null);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to reveal secret');
+    } finally {
+      setIsRevealingSecret(false);
+    }
   };
 
-  const getStatusIcon = () => {
-    switch (bridgeStatus) {
-      case 'processing':
-        return <Loader2 className="w-5 h-5 animate-spin text-neon-cyan" />;
+  const refundSwap = async (swap: SwapStatus) => {
+    setIsRefunding(true);
+    setError(null);
+
+    try {
+      await crossChainBridge.refundSwap(swap.id, fromChain);
+      
+      setActiveSwaps(prev => prev.filter(s => s.id !== swap.id));
+      setCompletedSwaps(prev => [...prev, { ...swap, status: 'refunded' }]);
+      calculateStats();
+      
+      setSelectedSwap(null);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to refund swap');
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
+  const getHtlcDetails = async (swap: SwapStatus) => {
+    try {
+      const details = await crossChainBridge.getSwapDetails(swap.id);
+      setHtlcDetails(details);
+      setShowHtlcModal(true);
+    } catch (error) {
+      setError('Failed to load HTLC details');
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
       case 'completed':
-        return <CheckCircle className="w-5 h-5 text-neon-green" />;
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'pending':
+      case 'initiated':
+        return <Clock className="h-4 w-4 text-yellow-500" />;
       case 'failed':
-        return <AlertCircle className="w-5 h-5 text-destructive" />;
+        return <X className="h-4 w-4 text-red-500" />;
+      case 'refunded':
+        return <RotateCcw className="h-4 w-4 text-blue-500" />;
       default:
-        return <Network className="w-5 h-5 text-muted-foreground" />;
+        return <AlertCircle className="h-4 w-4 text-gray-500" />;
     }
   };
 
-  const getStatusText = () => {
-    switch (bridgeStatus) {
-      case 'processing':
-        return "Processing Bridge";
-      case 'completed':
-        return "Bridge Completed";
-      case 'failed':
-        return "Bridge Failed";
-      default:
-        return "Ready to Bridge";
-    }
+  const getTimeRemaining = (timelock: number) => {
+    const now = Math.floor(Date.now() / 1000);
+    const remaining = timelock - now;
+    if (remaining <= 0) return 'Expired';
+    
+    const hours = Math.floor(remaining / 3600);
+    const minutes = Math.floor((remaining % 3600) / 60);
+    return `${hours}h ${minutes}m`;
   };
 
-  if (isLoading) {
-    return (
-      <Card className="p-6 bg-gradient-card border-neon-cyan/20">
-        <div className="flex items-center justify-center space-x-2">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Initializing bridge...</span>
-        </div>
-      </Card>
-    );
-  }
+  const formatAmount = (amount: string) => {
+    const num = parseFloat(amount);
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(2)}M`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(2)}K`;
+    }
+    return parseFloat(amount).toFixed(4);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Bridge Header */}
-      <div className="text-center">
-        <h2 className="text-3xl font-bold mb-2 flex items-center justify-center gap-2">
-          <Network className="w-8 h-8 text-neon-cyan" />
-          🟣⭐ Polygon ↔ Stellar Bridge
-        </h2>
-        <p className="text-muted-foreground">
-          Secure cross-chain atomic swaps with 1inch Fusion integration
-        </p>
-      </div>
-
-      {/* Bridge Form */}
-      <Card className="p-6 bg-gradient-card border-neon-cyan/20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Source Chain & Token */}
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">From Chain</label>
-              <Select value={fromChain?.id.toString()} onValueChange={(value) => {
-                const chain = chains.find(c => c.id.toString() === value);
-                handleChainChange(chain || null, 'from');
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select source chain" />
-                </SelectTrigger>
-                <SelectContent>
-                  {chains.map((chain) => (
-                    <SelectItem key={chain.id} value={chain.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        <span>{chain.icon}</span>
-                        <span>{chain.name}</span>
-                        <Badge variant="outline" className="ml-auto">
-                          {chain.status}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">From Token</label>
-              <Select value={fromToken?.address} onValueChange={(value) => {
-                const token = tokens.find(t => t.address === value);
-                handleTokenChange(token || null, 'from');
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select token" />
-                </SelectTrigger>
-                <SelectContent>
-                  {fromChain && getFilteredTokens(fromChain.id).map((token) => (
-                    <SelectItem key={token.address} value={token.address}>
-                      <div className="flex items-center gap-2">
-                        <span>{token.icon}</span>
-                        <span>{token.symbol}</span>
-                        <span className="text-muted-foreground">({token.name})</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">Amount</label>
-              <Input
-                type="number"
-                placeholder="0.0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="bg-background/50"
-              />
-            </div>
-          </div>
-
-          {/* Destination Chain & Token */}
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">To Chain</label>
-              <Select value={toChain?.id.toString()} onValueChange={(value) => {
-                const chain = chains.find(c => c.id.toString() === value);
-                handleChainChange(chain || null, 'to');
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select destination chain" />
-                </SelectTrigger>
-                <SelectContent>
-                  {chains.filter(c => c.id !== fromChain?.id).map((chain) => (
-                    <SelectItem key={chain.id} value={chain.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        <span>{chain.icon}</span>
-                        <span>{chain.name}</span>
-                        <Badge variant="outline" className="ml-auto">
-                          {chain.status}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">To Token</label>
-              <Select value={toToken?.address} onValueChange={(value) => {
-                const token = tokens.find(t => t.address === value);
-                handleTokenChange(token || null, 'to');
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select token" />
-                </SelectTrigger>
-                <SelectContent>
-                  {toChain && getFilteredTokens(toChain.id).map((token) => (
-                    <SelectItem key={token.address} value={token.address}>
-                      <div className="flex items-center gap-2">
-                        <span>{token.icon}</span>
-                        <span>{token.symbol}</span>
-                        <span className="text-muted-foreground">({token.name})</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">Recipient Address (Optional)</label>
-              <Input
-                placeholder={
-                  fromChain?.name.toLowerCase() === 'polygon' && toChain?.name.toLowerCase() === 'stellar'
-                    ? "Enter Stellar address (starts with G...)"
-                    : fromChain?.name.toLowerCase() === 'stellar' && toChain?.name.toLowerCase() === 'polygon'
-                    ? "Enter Ethereum/Polygon address (starts with 0x...)"
-                    : walletState.address || "Enter recipient address"
-                }
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                className="bg-background/50"
-              />
-              {fromChain && toChain && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  <p>
-                    {fromChain.name.toLowerCase() === 'polygon' && toChain.name.toLowerCase() === 'stellar'
-                      ? "Stellar addresses start with 'G' and are 56 characters long"
-                      : fromChain.name.toLowerCase() === 'stellar' && toChain.name.toLowerCase() === 'polygon'
-                      ? "Ethereum addresses start with '0x' and are 42 characters long"
-                      : "Enter the recipient's address"
-                    }
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (fromChain.name.toLowerCase() === 'polygon' && toChain.name.toLowerCase() === 'stellar') {
-                        setRecipient('GBBIBMRK44CUJMCQQWNTRP2SGYYTPBRIKG5A7RHSRG');
-                      } else if (fromChain.name.toLowerCase() === 'stellar' && toChain.name.toLowerCase() === 'polygon') {
-                        setRecipient('0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6');
-                      }
-                    }}
-                    className="text-neon-cyan hover:text-neon-cyan/80 underline"
-                  >
-                    Use test address
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Auto-Wallet Selection */}
-        <div className="mt-4 p-4 bg-space-gray/50 rounded-lg border border-neon-cyan/20">
+      {/* Header with Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="p-4 bg-gradient-card border-neon-cyan/20">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-neon-cyan" />
-              <Label htmlFor="auto-wallet" className="text-sm font-medium">
-                Auto-Generate Wallet
-              </Label>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Swaps</p>
+              <p className="text-2xl font-bold text-neon-cyan">{stats.totalSwaps}</p>
             </div>
-            <Switch
-              id="auto-wallet"
-              checked={autoSelectWallet}
-              onCheckedChange={setAutoSelectWallet}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            {autoSelectWallet 
-              ? "🎯 Will automatically generate and fund wallets for cross-chain operations"
-              : "🔐 Use your connected wallet for all transactions"
-            }
-          </p>
-          
-          {/* Show generated wallets */}
-          {Object.keys(generatedWallets).length > 0 && (
-            <div className="mt-3 p-2 bg-background/30 rounded border">
-              <p className="text-xs font-medium text-neon-cyan mb-1">Generated Wallets:</p>
-              {Object.entries(generatedWallets).map(([chainId, info]) => (
-                <div key={chainId} className="text-xs text-muted-foreground">
-                  Chain {chainId}: {info}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Bridge Quote */}
-        {bridgeQuote && (
-          <div className="mt-6 p-4 bg-space-gray rounded-lg border border-neon-cyan/20">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold">🎯 On-Chain Bridge Quote</h3>
-              <Badge variant={bridgeQuote.confidence > 90 ? "default" : "secondary"} className="text-xs">
-                {bridgeQuote.confidence}% Confidence
-              </Badge>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">From Amount:</span>
-                <span className="font-medium">{bridgeQuote.fromAmount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">To Amount:</span>
-                <span className="font-medium">{bridgeQuote.toAmount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Bridge Fee:</span>
-                <span className="font-medium">{bridgeQuote.fee}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Gas Fee:</span>
-                <span className="font-medium">{bridgeQuote.gasFee}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Fee:</span>
-                <span className="font-medium text-neon-cyan">{bridgeQuote.totalFee}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Estimated Time:</span>
-                <span className="font-medium">{bridgeQuote.estimatedTime} min</span>
-              </div>
-            </div>
-            
-            {/* Oracle Confidence Indicator */}
-            <div className="mt-3 p-2 bg-background/30 rounded">
-              <div className="flex items-center gap-2 text-xs">
-                <div className={`w-2 h-2 rounded-full ${
-                  bridgeQuote.confidence > 90 ? 'bg-green-500' : 
-                  bridgeQuote.confidence > 80 ? 'bg-yellow-500' : 'bg-red-500'
-                }`} />
-                <span className="text-muted-foreground">
-                  Oracle Price Confidence: {bridgeQuote.confidence}%
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Bridge Button */}
-        <div className="mt-6">
-          <Button
-            onClick={handleExecuteBridge}
-            disabled={!fromChain || !toChain || !fromToken || !toToken || !amount || isCalculating || bridgeStatus === 'processing'}
-            className="w-full bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
-          >
-            {bridgeStatus === 'processing' ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Processing Bridge...
-              </>
-            ) : (
-              <>
-                {getStatusIcon()}
-                <span className="ml-2">{getStatusText()}</span>
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </>
-            )}
-          </Button>
-        </div>
-      </Card>
-
-      {/* Bridge Status */}
-      {bridgeStatus !== 'idle' && (
-        <Alert className={bridgeStatus === 'completed' ? 'border-neon-green/30 bg-neon-green/10' : 
-                         bridgeStatus === 'failed' ? 'border-destructive/30 bg-destructive/10' : 
-                         'border-neon-cyan/30 bg-neon-cyan/10'}>
-          <AlertDescription className="flex items-center gap-2">
-            {getStatusIcon()}
-            {getStatusText()}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Bridge Info */}
-      <Card className="p-6 bg-gradient-card border-neon-cyan/20">
-        <h3 className="font-semibold mb-4 flex items-center gap-2">
-          <Coins className="w-5 h-5 text-neon-cyan" />
-          Bridge Information
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="text-center p-3 bg-space-gray rounded-lg">
-            <div className="text-2xl mb-1">🔒</div>
-            <div className="font-medium">Secure HTLC</div>
-            <div className="text-muted-foreground">Atomic cross-chain swaps</div>
-          </div>
-          <div className="text-center p-3 bg-space-gray rounded-lg">
-            <div className="text-2xl mb-1">⚡</div>
-            <div className="font-medium">Fast Processing</div>
-            <div className="text-muted-foreground">2-5 minutes completion</div>
-          </div>
-          <div className="text-center p-3 bg-space-gray rounded-lg">
-            <div className="text-2xl mb-1">🌉</div>
-            <div className="font-medium">Multi-Chain</div>
-            <div className="text-muted-foreground">6+ networks supported</div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Bridge Process Tracker */}
-      {activeBridgeProcesses.length > 0 && (
-        <Card className="p-6 bg-gradient-card border-neon-purple/20">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">🔄 Active Bridge Processes</h3>
-              <Badge variant="secondary">{activeBridgeProcesses.length} Active</Badge>
-            </div>
-
-            {activeBridgeProcesses.map((process) => (
-              <div key={process.id} className="p-4 bg-space-gray rounded-lg border border-neon-purple/20">
-                <div className="space-y-4">
-                  {/* Process Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{process.fromToken}</span>
-                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{process.toToken}</span>
-                      </div>
-                      <Badge 
-                        variant="outline" 
-                        className={
-                          process.status === 'completed' ? 'text-green-500 border-green-500/30' :
-                          process.status === 'failed' ? 'text-red-500 border-red-500/30' :
-                          'text-blue-500 border-blue-500/30'
-                        }
-                      >
-                        {process.status.charAt(0).toUpperCase() + process.status.slice(1)}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {Math.round((Date.now() - process.startTime) / 1000)}s elapsed
-                    </div>
-                  </div>
-
-                  {/* Bridge Steps */}
-                  <div className="space-y-3">
-                    {process.steps.map((step: any, index: number) => (
-                      <div key={step.id} className="flex items-center gap-3">
-                        <div className={`flex items-center justify-center w-6 h-6 rounded-full ${
-                          step.status === 'completed' ? 'bg-green-500/20' :
-                          step.status === 'processing' ? 'bg-blue-500/20' :
-                          step.status === 'failed' ? 'bg-red-500/20' :
-                          'bg-muted/20'
-                        }`}>
-                          {step.status === 'completed' ? <CheckCircle className="w-4 h-4 text-green-500" /> :
-                           step.status === 'processing' ? <Loader2 className="w-4 h-4 text-blue-500 animate-spin" /> :
-                           step.status === 'failed' ? <AlertCircle className="w-4 h-4 text-red-500" /> :
-                           <Clock className="w-4 h-4 text-muted-foreground" />}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-sm font-medium ${
-                              step.status === 'completed' ? 'text-green-500' :
-                              step.status === 'processing' ? 'text-blue-500' :
-                              step.status === 'failed' ? 'text-red-500' :
-                              'text-muted-foreground'
-                            }`}>
-                              {step.name}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{step.description}</p>
-                          {step.error && (
-                            <p className="text-xs text-red-500 mt-1">{step.error}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Process Details */}
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-muted/20">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Amount</p>
-                      <p className="text-sm font-medium text-white">
-                        {process.fromAmount} {process.fromToken} → {process.toAmount} {process.toToken}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Chains</p>
-                      <p className="text-sm font-medium text-white">
-                        {process.fromChain} → {process.toChain}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <Activity className="w-8 h-8 text-neon-cyan" />
           </div>
         </Card>
+
+        <Card className="p-4 bg-gradient-card border-green-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Active Swaps</p>
+              <p className="text-2xl font-bold text-green-500">{stats.activeSwaps}</p>
+            </div>
+            <Zap className="w-8 h-8 text-green-500" />
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-gradient-card border-purple-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Volume</p>
+              <p className="text-2xl font-bold text-purple-500">${stats.totalVolume}</p>
+            </div>
+            <BarChart3 className="w-8 h-8 text-purple-500" />
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-gradient-card border-orange-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Success Rate</p>
+              <p className="text-2xl font-bold text-orange-500">{stats.successRate.toFixed(1)}%</p>
+            </div>
+            <TrendingUp className="w-8 h-8 text-orange-500" />
+          </div>
+          <Progress value={stats.successRate} className="mt-2 h-2" />
+        </Card>
+      </div>
+
+      {/* Main Bridge Interface */}
+      <Tabs defaultValue="bridge" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="bridge">Bridge</TabsTrigger>
+          <TabsTrigger value="active">Active Swaps</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="bridge" className="space-y-4">
+          <Card className="bg-gradient-card border-neon-cyan/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-neon-cyan" />
+                Cross-Chain Atomic Swap
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!walletState.isConnected && (
+                <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                  <div className="flex items-center gap-2 text-red-400">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">Please connect your wallet to start bridging</span>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                  <div className="flex items-center gap-2 text-red-400">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">{error}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* From Chain */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">From Chain</label>
+                  <Select value={fromChain} onValueChange={(value: 'polygon' | 'stellar') => setFromChain(value)}>
+                    <SelectTrigger className="bg-space-gray border-neon-cyan/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="polygon">🟣 Polygon</SelectItem>
+                      <SelectItem value="stellar">⭐ Stellar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* To Chain */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">To Chain</label>
+                  <Select value={toChain} onValueChange={(value: 'polygon' | 'stellar') => setToChain(value)}>
+                    <SelectTrigger className="bg-space-gray border-neon-cyan/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="polygon">🟣 Polygon</SelectItem>
+                      <SelectItem value="stellar">⭐ Stellar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Amount */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Amount</label>
+                  <Input
+                    type="number"
+                    placeholder="0.0"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="bg-space-gray border-neon-cyan/20 focus:border-neon-cyan/40"
+                  />
+                </div>
+
+                {/* From Token */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">From Token</label>
+                  <Select value={fromToken} onValueChange={setFromToken}>
+                    <SelectTrigger className="bg-space-gray border-neon-cyan/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(availableTokens[fromChain]).map(([symbol, token]) => (
+                        <SelectItem key={symbol} value={symbol}>
+                          {token.symbol}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* To Token */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">To Token</label>
+                  <Select value={toToken} onValueChange={setToToken}>
+                    <SelectTrigger className="bg-space-gray border-neon-cyan/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(availableTokens[toChain]).map(([symbol, token]) => (
+                        <SelectItem key={symbol} value={symbol}>
+                          {token.symbol}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button 
+                onClick={initiateSwap}
+                disabled={isInitiating || !walletState.isConnected || !amount || parseFloat(amount) <= 0}
+                className="w-full bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
+              >
+                {isInitiating ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Initiating Swap...
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    Initiate Atomic Swap
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="active" className="space-y-4">
+          <Card className="bg-gradient-card border-neon-cyan/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-neon-cyan" />
+                Active HTLC Swaps
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activeSwaps.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Shield className="w-8 h-8 mx-auto mb-2" />
+                  <p>No active swaps</p>
+                  <p className="text-sm">Initiate a swap to see it here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {activeSwaps.map((swap) => (
+                    <div key={swap.id} className="p-4 bg-space-gray/50 rounded-lg border border-neon-cyan/10">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(swap.status)}
+                          <span className="text-sm font-medium">
+                            {swap.amount} {swap.fromToken} → {swap.toToken}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {swap.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground mb-3">
+                        <div>{swap.fromChain} → {swap.toChain}</div>
+                        {swap.timelock && (
+                          <div className="flex items-center gap-1">
+                            <Timer className="h-3 w-3" />
+                            {getTimeRemaining(swap.timelock)}
+                          </div>
+                        )}
+                      </div>
+
+                      {swap.ethereumTxHash && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                          <span>ETH:</span>
+                          <span className="font-mono">{swap.ethereumTxHash.substring(0, 10)}...{swap.ethereumTxHash.substring(58)}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(swap.ethereumTxHash!)}
+                            className="h-4 w-4 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {swap.stellarTxHash && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                          <span>XLM:</span>
+                          <span className="font-mono">{swap.stellarTxHash.substring(0, 10)}...{swap.stellarTxHash.substring(58)}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(swap.stellarTxHash!)}
+                            className="h-4 w-4 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* HTLC Security Controls */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => getHtlcDetails(swap)}
+                          className="bg-space-gray border-neon-cyan/20 hover:bg-neon-cyan/10"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          HTLC Details
+                        </Button>
+                        
+                        {swap.status === 'pending' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedSwap(swap)}
+                              className="bg-green-500/10 border-green-500/20 text-green-400 hover:bg-green-500/20"
+                            >
+                              <Unlock className="h-3 w-3 mr-1" />
+                              Reveal Secret
+                            </Button>
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => refundSwap(swap)}
+                              disabled={isRefunding}
+                              className="bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Refund
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          <Card className="bg-gradient-card border-neon-cyan/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-neon-cyan" />
+                Swap History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {completedSwaps.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Activity className="w-8 h-8 mx-auto mb-2" />
+                  <p>No completed swaps</p>
+                  <p className="text-sm">Complete a swap to see it here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {completedSwaps.map((swap) => (
+                    <div key={swap.id} className="p-3 bg-space-gray/50 rounded-lg border border-neon-cyan/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(swap.status)}
+                          <span className="text-sm font-medium">
+                            {swap.amount} {swap.fromToken} → {swap.toToken}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {swap.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {swap.fromChain} → {swap.toChain} • {new Date(swap.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Secret Revelation Modal */}
+      {selectedSwap && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-space-gray p-6 rounded-lg border border-neon-cyan/20 max-w-md w-full mx-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Key className="h-5 w-5 text-neon-cyan" />
+              <h3 className="text-lg font-semibold">Reveal HTLC Secret</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                Enter the secret to complete the swap and claim your funds.
+              </div>
+              
+              <Input
+                type="text"
+                placeholder="Enter secret..."
+                value={secretInput}
+                onChange={(e) => setSecretInput(e.target.value)}
+                className="bg-space-gray border-neon-cyan/20 focus:border-neon-cyan/40"
+              />
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => revealSecret(selectedSwap)}
+                  disabled={isRevealingSecret || !secretInput.trim()}
+                  className="flex-1 bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 hover:bg-neon-cyan/30"
+                >
+                  {isRevealingSecret ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Revealing...
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="h-4 w-4 mr-2" />
+                      Reveal Secret
+                    </>
+                  )}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedSwap(null);
+                    setSecretInput('');
+                  }}
+                  className="bg-space-gray border-neon-cyan/20 hover:bg-neon-cyan/10"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HTLC Details Modal */}
+      {showHtlcModal && htlcDetails && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-space-gray p-6 rounded-lg border border-neon-cyan/20 max-w-lg w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Lock className="h-5 w-5 text-neon-cyan" />
+                <h3 className="text-lg font-semibold">HTLC Details</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHtlcModal(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Hashlock:</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-mono">{htlcDetails.hashlock?.substring(0, 16)}...</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(htlcDetails.hashlock)}
+                    className="h-4 w-4 p-0"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Timelock:</span>
+                <span>{new Date(htlcDetails.timelock * 1000).toLocaleString()}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Amount:</span>
+                <span>{htlcDetails.amount} {htlcDetails.asset}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Status:</span>
+                <Badge variant="outline" className="text-xs">
+                  {htlcDetails.status}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
